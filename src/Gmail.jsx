@@ -29,6 +29,9 @@ import {
   MdPictureAsPdf,
   MdUnsubscribe,
   MdAccessTime,
+  MdReport,
+  MdDriveFileMove,
+  MdOutbox,
 } from "react-icons/md";
 
 const LABEL_STYLES = {
@@ -242,11 +245,12 @@ function ComposeModal({ onClose }) {
   );
 }
 
-function EmailDetail({ email, onClose, onReply }) {
+function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread }) {
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
   const [downloadingIdx, setDownloadingIdx] = useState(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const downloadAttachment = async (index, filename) => {
     setDownloadingIdx(index);
@@ -288,21 +292,88 @@ function EmailDetail({ email, onClose, onReply }) {
       })
     : email.time;
 
+  const iconBtn = (onClick, title, children) => (
+    <button
+      key={title}
+      title={title}
+      onClick={onClick}
+      style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+    >
+      {children}
+    </button>
+  );
+
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", minWidth: 0 }}>
-      {/* Header bar */}
-      <div style={{ display: "flex", alignItems: "center", padding: "12px 20px", borderBottom: "0.5px solid #e0e0e0", gap: 12 }}>
-        <button
-          onClick={onClose}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: "4px 8px", borderRadius: 4, display: "flex", alignItems: "center" }}
-        >
-          <MdArrowBack size={20} />
-        </button>
-        <span style={{ fontSize: 20, fontWeight: 500, color: "#202124", flex: 1 }}>
+
+      {/* Toolbar */}
+      <div style={{ display: "flex", alignItems: "center", padding: "4px 8px", borderBottom: "0.5px solid #e0e0e0", gap: 0, flexShrink: 0 }}>
+
+        {/* Back */}
+        {iconBtn(onClose, "Back to Inbox", <MdArrowBack size={20} />)}
+
+        <div style={{ width: 8 }} />
+
+        {/* Primary actions */}
+        {iconBtn((e) => { e.stopPropagation(); onDelete(); }, "Archive", <MdArchive size={20} />)}
+        {iconBtn((e) => { e.stopPropagation(); }, "Report spam", <MdReport size={20} />)}
+        {iconBtn((e) => { e.stopPropagation(); onDelete(); }, "Delete", <MdDelete size={20} />)}
+
+        <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
+
+        {/* Secondary actions */}
+        {iconBtn((e) => { e.stopPropagation(); onMarkUnread(); }, "Mark as unread", <MdMarkEmailUnread size={20} />)}
+        {iconBtn((e) => { e.stopPropagation(); }, "Snooze", <MdAccessTime size={20} />)}
+
+        <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
+
+        {/* Move / Labels */}
+        {iconBtn((e) => { e.stopPropagation(); }, "Move to", <MdDriveFileMove size={20} />)}
+        {iconBtn((e) => { e.stopPropagation(); }, "Labels", <MdLabel size={20} />)}
+
+        <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
+
+        {/* More */}
+        <div style={{ position: "relative" }}>
+          {iconBtn((e) => { e.stopPropagation(); setShowMoreMenu(v => !v); }, "More", <MdMoreVert size={20} />)}
+          {showMoreMenu && (
+            <>
+              <div onClick={() => setShowMoreMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+              <div style={{ position: "absolute", top: 44, left: 0, background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", zIndex: 100, minWidth: 200, padding: "4px 0", border: "0.5px solid #e0e0e0" }}>
+                {[
+                  "Mark as read",
+                  "Mark as important",
+                  "Add star",
+                  "Create event",
+                  "Filter messages like these",
+                  "Mute",
+                  "Print",
+                ].map((item) => (
+                  <div
+                    key={item}
+                    onClick={() => setShowMoreMenu(false)}
+                    style={{ padding: "10px 20px", fontSize: 14, color: "#202124", cursor: "pointer" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Subject line */}
+      <div style={{ display: "flex", alignItems: "center", padding: "12px 24px 4px", gap: 12, flexShrink: 0 }}>
+        <span style={{ fontSize: 22, fontWeight: 500, color: "#202124", flex: 1, lineHeight: 1.3 }}>
           {email.subject}
         </span>
-        {email.label && (
-          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 500, background: LABEL_STYLES[email.label]?.bg, color: LABEL_STYLES[email.label]?.color }}>
+        {email.label && email.label !== "inbox" && (
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 500, background: LABEL_STYLES[email.label]?.bg, color: LABEL_STYLES[email.label]?.color, flexShrink: 0 }}>
             {email.label.charAt(0).toUpperCase() + email.label.slice(1)}
           </span>
         )}
@@ -957,6 +1028,14 @@ export default function GmailUI() {
                 email={selectedEmail}
                 onClose={() => setSelectedId(null)}
                 onReply={() => setShowCompose(true)}
+                onDelete={() => {
+                  setEmails(prev => prev.filter(em => em.id !== selectedEmail.id));
+                  setSelectedId(null);
+                }}
+                onMarkUnread={() => {
+                  setEmails(prev => prev.map(em => em.id === selectedEmail.id ? { ...em, unread: true } : em));
+                  setSelectedId(null);
+                }}
               />
             ) : (
               <div
