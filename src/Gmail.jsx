@@ -392,6 +392,9 @@ export default function GmailUI() {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
+  const [checkedIds, setCheckedIds] = useState(new Set());
+  const [hoveredId, setHoveredId] = useState(null);
+  const [showSelectDropdown, setShowSelectDropdown] = useState(false);
 
   useEffect(() => {
     fetch("/emails")
@@ -423,10 +426,23 @@ export default function GmailUI() {
   };
 
   const openEmail = (id) => {
+    if (checkedIds.size > 0) {
+      toggleCheck(id);
+      return;
+    }
     setSelectedId(id);
     setEmails((prev) =>
       prev.map((em) => (em.id === id ? { ...em, unread: false } : em))
     );
+  };
+
+  const toggleCheck = (id, e) => {
+    if (e) e.stopPropagation();
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   const filteredEmails = emails.filter(
@@ -435,6 +451,42 @@ export default function GmailUI() {
       e.sender.toLowerCase().includes(search.toLowerCase()) ||
       e.subject.toLowerCase().includes(search.toLowerCase())
   );
+
+  const allChecked =
+    filteredEmails.length > 0 &&
+    filteredEmails.every((e) => checkedIds.has(e.id));
+  const someChecked = checkedIds.size > 0;
+
+  const toggleSelectAll = () => {
+    if (allChecked) {
+      setCheckedIds(new Set());
+    } else {
+      setCheckedIds(new Set(filteredEmails.map((e) => e.id)));
+    }
+  };
+
+  const markCheckedRead = () => {
+    setEmails((prev) =>
+      prev.map((em) =>
+        checkedIds.has(em.id) ? { ...em, unread: false } : em
+      )
+    );
+    setCheckedIds(new Set());
+  };
+
+  const markCheckedUnread = () => {
+    setEmails((prev) =>
+      prev.map((em) =>
+        checkedIds.has(em.id) ? { ...em, unread: true } : em
+      )
+    );
+    setCheckedIds(new Set());
+  };
+
+  const deleteChecked = () => {
+    setEmails((prev) => prev.filter((em) => !checkedIds.has(em.id)));
+    setCheckedIds(new Set());
+  };
 
   return (
     <div
@@ -900,6 +952,170 @@ export default function GmailUI() {
                   ))}
                 </div>
 
+                {/* Toolbar */}
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "4px 16px",
+                    gap: 4,
+                    borderBottom: "0.5px solid #e0e0e0",
+                    minHeight: 40,
+                    background: someChecked ? "#e8f0fe" : "transparent",
+                    transition: "background 0.15s",
+                  }}
+                >
+                  {/* Select-all checkbox + dropdown caret */}
+                  <div style={{ display: "flex", alignItems: "center", position: "relative", flexShrink: 0 }}>
+                    {/* Checkbox */}
+                    <div
+                      onClick={toggleSelectAll}
+                      style={{
+                        width: 18,
+                        height: 18,
+                        border: `2px solid ${allChecked ? "#1a73e8" : someChecked ? "#1a73e8" : "#5f6368"}`,
+                        borderRadius: 3,
+                        background: allChecked ? "#1a73e8" : "transparent",
+                        cursor: "pointer",
+                        flexShrink: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        position: "relative",
+                      }}
+                    >
+                      {allChecked && (
+                        <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>
+                      )}
+                      {!allChecked && someChecked && (
+                        <span style={{ color: "#1a73e8", fontSize: 14, lineHeight: 1, position: "absolute" }}>—</span>
+                      )}
+                    </div>
+
+                    {/* Dropdown caret */}
+                    <div
+                      onClick={(e) => { e.stopPropagation(); setShowSelectDropdown((v) => !v); }}
+                      style={{
+                        width: 16,
+                        height: 18,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        color: "#5f6368",
+                        fontSize: 10,
+                        userSelect: "none",
+                      }}
+                    >
+                      ▾
+                    </div>
+
+                    {/* Dropdown menu */}
+                    {showSelectDropdown && (
+                      <>
+                        {/* Backdrop to close */}
+                        <div
+                          onClick={() => setShowSelectDropdown(false)}
+                          style={{ position: "fixed", inset: 0, zIndex: 99 }}
+                        />
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 26,
+                            left: 0,
+                            background: "#fff",
+                            borderRadius: 8,
+                            boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                            zIndex: 100,
+                            minWidth: 140,
+                            padding: "4px 0",
+                            border: "0.5px solid #e0e0e0",
+                          }}
+                        >
+                          {[
+                            {
+                              label: "All",
+                              action: () => setCheckedIds(new Set(filteredEmails.map((e) => e.id))),
+                            },
+                            {
+                              label: "None",
+                              action: () => setCheckedIds(new Set()),
+                            },
+                            {
+                              label: "Read",
+                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => !e.unread).map((e) => e.id))),
+                            },
+                            {
+                              label: "Unread",
+                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => e.unread).map((e) => e.id))),
+                            },
+                            {
+                              label: "Starred",
+                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => e.starred).map((e) => e.id))),
+                            },
+                            {
+                              label: "Unstarred",
+                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => !e.starred).map((e) => e.id))),
+                            },
+                          ].map(({ label, action }) => (
+                            <div
+                              key={label}
+                              onClick={() => { action(); setShowSelectDropdown(false); }}
+                              style={{
+                                padding: "8px 20px",
+                                fontSize: 14,
+                                color: "#202124",
+                                cursor: "pointer",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              {label}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {someChecked ? (
+                    <>
+                      <span style={{ fontSize: 13, color: "#202124", marginLeft: 8, marginRight: 4 }}>
+                        {checkedIds.size} selected
+                      </span>
+                      {[
+                        { label: "Archive", icon: "📦", action: deleteChecked },
+                        { label: "Delete", icon: "🗑️", action: deleteChecked },
+                        { label: "Mark read", icon: "✉️", action: markCheckedRead },
+                        { label: "Mark unread", icon: "📩", action: markCheckedUnread },
+                      ].map(({ label, icon, action }) => (
+                        <button
+                          key={label}
+                          onClick={action}
+                          title={label}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            borderRadius: "50%",
+                            width: 32,
+                            height: 32,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 16,
+                            color: "#5f6368",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#d2e3fc")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                        >
+                          {icon}
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
+                </div>
+
                 {/* Email List */}
                 <div style={{ flex: 1, overflowY: "auto" }}>
                   {loading && (
@@ -926,10 +1142,16 @@ export default function GmailUI() {
                       No emails found
                     </div>
                   )}
-                  {filteredEmails.map((email) => (
+                  {filteredEmails.map((email) => {
+                    const isChecked = checkedIds.has(email.id);
+                    const isHovered = hoveredId === email.id;
+                    const showCheckbox = isChecked || isHovered;
+                    return (
                     <div
                       key={email.id}
                       onClick={() => openEmail(email.id)}
+                      onMouseEnter={() => setHoveredId(email.id)}
+                      onMouseLeave={() => setHoveredId(null)}
                       style={{
                         display: "flex",
                         alignItems: "center",
@@ -937,18 +1159,16 @@ export default function GmailUI() {
                         padding: "10px 16px",
                         borderBottom: "0.5px solid #f0f0f0",
                         cursor: "pointer",
-                        background: email.unread ? "#fff" : "#f6f8fc",
+                        background: isChecked
+                          ? "#e8f0fe"
+                          : isHovered
+                          ? "#f2f6fc"
+                          : email.unread
+                          ? "#fff"
+                          : "#f6f8fc",
                         transition: "background 0.1s",
                         fontWeight: email.unread ? 600 : 400,
                       }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.background = "#f2f6fc")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.background = email.unread
-                          ? "#fff"
-                          : "#f6f8fc")
-                      }
                     >
                       <div
                         style={{
@@ -959,11 +1179,44 @@ export default function GmailUI() {
                           flexShrink: 0,
                         }}
                       />
-                      <Avatar
-                        initials={email.avatar}
-                        color={email.avatarColor}
-                        size={32}
-                      />
+                      {/* Avatar / Checkbox toggle */}
+                      <div
+                        onClick={(e) => toggleCheck(email.id, e)}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          flexShrink: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {showCheckbox ? (
+                          <div
+                            style={{
+                              width: 18,
+                              height: 18,
+                              border: `2px solid ${isChecked ? "#1a73e8" : "#5f6368"}`,
+                              borderRadius: 3,
+                              background: isChecked ? "#1a73e8" : "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isChecked && (
+                              <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>
+                            )}
+                          </div>
+                        ) : (
+                          <Avatar
+                            initials={email.avatar}
+                            color={email.avatarColor}
+                            size={32}
+                          />
+                        )}
+                      </div>
                       <span
                         onClick={(e) => toggleStar(email.id, e)}
                         style={{
@@ -1067,7 +1320,8 @@ export default function GmailUI() {
                         </span>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               </div>
             )}
