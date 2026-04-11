@@ -1,183 +1,4 @@
-import { useState } from "react";
-
-const EMAILS = [
-  {
-    id: 1,
-    unread: true,
-    starred: true,
-    sender: "GitHub",
-    avatar: "GH",
-    avatarColor: "#24292e",
-    subject: "[github/myproject] PR #42 merged",
-    preview: "Your pull request has been successfully merged into main branch.",
-    time: "10:32 AM",
-    label: "work",
-    hasAttachment: false,
-    body: "Your pull request #42 has been successfully merged into the main branch.\n\nMerged by: alex-dev\nBranch: feature/auth-refactor → main\nCommit: a3f92b1\n\nView the pull request on GitHub.",
-  },
-  {
-    id: 2,
-    unread: true,
-    starred: false,
-    sender: "Alex Johnson",
-    avatar: "AJ",
-    avatarColor: "#1a73e8",
-    subject: "Re: Team lunch tomorrow?",
-    preview: "Sounds great! I'll book the table at 1pm. See you all there 🎉",
-    time: "9:14 AM",
-    label: "personal",
-    hasAttachment: false,
-    body: "Sounds great! I'll book the table at 1pm.\n\nThe restaurant is at 45 Market Street — should be easy to find. Let me know if anyone needs a lift.\n\nSee you all there 🎉",
-  },
-  {
-    id: 3,
-    unread: true,
-    starred: false,
-    sender: "Notion",
-    avatar: "N",
-    avatarColor: "#000",
-    subject: "Your weekly digest is ready",
-    preview:
-      "Here's what happened across your workspaces this week — 14 new pages, 3 comments.",
-    time: "8:47 AM",
-    label: null,
-    hasAttachment: false,
-    body: "Here's your weekly digest for the week of Oct 27 – Nov 2.\n\n📄 14 new pages created\n💬 3 new comments\n✅ 7 tasks completed\n\nVisit Notion to see your full activity.",
-  },
-  {
-    id: 4,
-    unread: false,
-    starred: true,
-    sender: "Chase Bank",
-    avatar: "CB",
-    avatarColor: "#117ACA",
-    subject: "Your statement is ready",
-    preview:
-      "Your October 2025 statement for account ending in 4821 is now available.",
-    time: "Yesterday",
-    label: "finance",
-    hasAttachment: true,
-    body: "Your October 2025 bank statement for the account ending in 4821 is now available.\n\nStatement period: Oct 1 – Oct 31, 2025\nAccount: Checking ••••4821\n\nLog in to Chase online banking to view and download your statement.",
-  },
-  {
-    id: 5,
-    unread: false,
-    starred: false,
-    sender: "Stripe",
-    avatar: "S",
-    avatarColor: "#635BFF",
-    subject: "Payout of $2,340.00 initiated",
-    preview:
-      "A payout of $2,340.00 USD has been initiated to your bank account.",
-    time: "Yesterday",
-    label: "finance",
-    hasAttachment: false,
-    body: "A payout has been initiated to your bank account.\n\nAmount: $2,340.00 USD\nEstimated arrival: 2 business days\nAccount: Bank of America ••••9201\n\nView this payout in your Stripe dashboard.",
-  },
-  {
-    id: 6,
-    unread: true,
-    starred: false,
-    sender: "Sara Williams",
-    avatar: "SW",
-    avatarColor: "#E91E63",
-    subject: "Design feedback on the new landing page",
-    preview:
-      "Hi! I went through the mockups — overall looking great, just a few small tweaks needed.",
-    time: "Tue",
-    label: "work",
-    hasAttachment: true,
-    body: "Hi!\n\nI went through the mockups and overall they're looking really great. Just a few small tweaks:\n\n1. The hero section CTA button feels a bit small on mobile\n2. The testimonials section needs more whitespace\n3. Font size on footer links could be bumped up slightly\n\nI've attached a PDF with annotated screenshots. Let me know what you think!\n\n— Sara",
-  },
-  {
-    id: 7,
-    unread: false,
-    starred: false,
-    sender: "Google Workspace",
-    avatar: "GW",
-    avatarColor: "#4285F4",
-    subject: "Storage alert: 80% used",
-    preview:
-      "Your Google Workspace storage is almost full. Manage storage to prevent issues.",
-    time: "Tue",
-    label: null,
-    hasAttachment: false,
-    body: "Your Google Workspace storage is 80% full.\n\nUsed: 12.8 GB of 15 GB\n\nTo prevent service interruptions, consider deleting files you no longer need or upgrading your storage plan.",
-  },
-  {
-    id: 8,
-    unread: false,
-    starred: true,
-    sender: "Mom",
-    avatar: "M",
-    avatarColor: "#FF7043",
-    subject: "Weekend plans",
-    preview: "Don't forget dinner on Sunday! Dad made his famous lasagna 🍝",
-    time: "Mon",
-    label: "personal",
-    hasAttachment: false,
-    body: "Hi sweetheart!\n\nDon't forget dinner on Sunday evening. Dad is making his famous lasagna 🍝 We're thinking around 6pm — let me know if that works for you.\n\nLove you!\nMom",
-  },
-  {
-    id: 9,
-    unread: false,
-    starred: false,
-    sender: "Vercel",
-    avatar: "V",
-    avatarColor: "#000",
-    subject: "Deployment succeeded: myapp-prod",
-    preview:
-      "Your deployment to production is live. Branch: main • Commit: a3f92b1",
-    time: "Mon",
-    label: "work",
-    hasAttachment: false,
-    body: "Your deployment is live! 🚀\n\nProject: myapp-prod\nBranch: main\nCommit: a3f92b1 — 'fix: resolve auth token refresh bug'\nDuration: 43s\n\nVisit your deployment at https://myapp.vercel.app",
-  },
-  {
-    id: 10,
-    unread: false,
-    starred: false,
-    sender: "Netflix",
-    avatar: "NF",
-    avatarColor: "#E50914",
-    subject: "New on Netflix this month",
-    preview:
-      "Discover what's new: new seasons, movies, and exclusives just added.",
-    time: "Sun",
-    label: null,
-    hasAttachment: false,
-    body: "Here's what's new on Netflix this November:\n\n🎬 New Movies\n• The Last Frontier (Action)\n• Midnight Bloom (Romance)\n\n📺 New Series\n• Echoes Season 2\n• The Code (Thriller)\n\nSign in to start watching.",
-  },
-  {
-    id: 11,
-    unread: true,
-    starred: false,
-    sender: "Figma",
-    avatar: "F",
-    avatarColor: "#A259FF",
-    subject: "James shared a file with you",
-    preview:
-      "James Chen has shared 'Product Redesign v2' with you. Click to view.",
-    time: "Sun",
-    label: "work",
-    hasAttachment: false,
-    body: "James Chen has shared a Figma file with you.\n\nFile: Product Redesign v2\nShared with: you@example.com\nPermission: Can view\n\nOpen in Figma to collaborate.",
-  },
-  {
-    id: 12,
-    unread: false,
-    starred: false,
-    sender: "AWS",
-    avatar: "AWS",
-    avatarColor: "#FF9900",
-    subject: "Your invoice for October 2025",
-    preview: "Invoice #INV-20251001 — Total: $94.32. Thank you for using AWS.",
-    time: "Oct 31",
-    label: "finance",
-    hasAttachment: true,
-    body: "Thank you for using Amazon Web Services.\n\nInvoice #INV-20251001\nPeriod: October 1–31, 2025\n\nServices:\n• EC2: $54.20\n• S3: $18.12\n• CloudFront: $22.00\n\nTotal: $94.32 USD\n\nPayment will be charged to your card on file.",
-  },
-];
+import { useState, useEffect } from "react";
 
 const LABEL_STYLES = {
   work: { bg: "#fce8e6", color: "#c5221f" },
@@ -221,6 +42,23 @@ function ComposeModal({ onClose }) {
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSend = async () => {
+    setSending(true);
+    try {
+      await fetch("/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to, subject, text: body }),
+      });
+      onClose();
+    } catch (err) {
+      console.error("Failed to send email:", err);
+    } finally {
+      setSending(false);
+    }
+  };
 
   const fieldStyle = {
     display: "flex",
@@ -324,6 +162,8 @@ function ComposeModal({ onClose }) {
         }}
       >
         <button
+          onClick={handleSend}
+          disabled={sending}
           style={{
             background: "#1a73e8",
             color: "#fff",
@@ -332,10 +172,11 @@ function ComposeModal({ onClose }) {
             padding: "8px 24px",
             fontSize: 14,
             fontWeight: 500,
-            cursor: "pointer",
+            cursor: sending ? "default" : "pointer",
+            opacity: sending ? 0.7 : 1,
           }}
         >
-          Send
+          {sending ? "Sending..." : "Send"}
         </button>
         {["📎", "🔗", "😊", "🖼️"].map((icon) => (
           <button
@@ -548,8 +389,22 @@ function EmailDetail({ email, onClose, onReply }) {
 }
 
 export default function GmailUI() {
-  const [emails, setEmails] = useState(EMAILS);
+  const [emails, setEmails] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
+
+  useEffect(() => {
+    fetch("/emails")
+      .then((res) => res.json())
+      .then((data) => {
+        setEmails(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch emails:", err);
+        setLoading(false);
+      });
+  }, []);
   const [activeNav, setActiveNav] = useState("Inbox");
   const [showCompose, setShowCompose] = useState(false);
   const [activeTab, setActiveTab] = useState("Primary");
@@ -1047,7 +902,19 @@ export default function GmailUI() {
 
                 {/* Email List */}
                 <div style={{ flex: 1, overflowY: "auto" }}>
-                  {filteredEmails.length === 0 && (
+                  {loading && (
+                    <div
+                      style={{
+                        padding: 40,
+                        textAlign: "center",
+                        color: "#5f6368",
+                        fontSize: 14,
+                      }}
+                    >
+                      Loading emails...
+                    </div>
+                  )}
+                  {!loading && filteredEmails.length === 0 && (
                     <div
                       style={{
                         padding: 40,
