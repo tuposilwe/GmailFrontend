@@ -237,177 +237,138 @@ function ComposeModal({ onClose }) {
 }
 
 function EmailDetail({ email, onClose, onReply }) {
+  const [detail, setDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(true);
+  const [showDetails, setShowDetails] = useState(false);
+
+  useEffect(() => {
+    setLoadingDetail(true);
+    setDetail(null);
+    fetch(`/emails/${email.id}`)
+      .then((r) => r.json())
+      .then((data) => { setDetail(data); setLoadingDetail(false); })
+      .catch(() => setLoadingDetail(false));
+  }, [email.id]);
+
+  const senderName = detail?.senderName || email.senderName || email.sender;
+  const senderEmail = detail?.senderEmail || email.senderEmail || "";
+  const toEmail = detail?.toEmail || "";
+  const fullDate = detail?.date
+    ? new Date(detail.date).toLocaleString([], {
+        weekday: "short", month: "short", day: "numeric",
+        year: "numeric", hour: "2-digit", minute: "2-digit",
+      })
+    : email.time;
+
   return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        background: "#fff",
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          padding: "12px 20px",
-          borderBottom: "0.5px solid #e0e0e0",
-          gap: 12,
-        }}
-      >
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", minWidth: 0 }}>
+      {/* Header bar */}
+      <div style={{ display: "flex", alignItems: "center", padding: "12px 20px", borderBottom: "0.5px solid #e0e0e0", gap: 12 }}>
         <button
           onClick={onClose}
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "#5f6368",
-            padding: "4px 8px",
-            borderRadius: 4,
-            display: "flex",
-            alignItems: "center",
-          }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: "4px 8px", borderRadius: 4, display: "flex", alignItems: "center" }}
         >
           <MdArrowBack size={20} />
         </button>
-        <span
-          style={{ fontSize: 16, fontWeight: 600, color: "#202124", flex: 1 }}
-        >
+        <span style={{ fontSize: 20, fontWeight: 500, color: "#202124", flex: 1 }}>
           {email.subject}
         </span>
         {email.label && (
-          <span
-            style={{
-              fontSize: 11,
-              padding: "2px 8px",
-              borderRadius: 4,
-              fontWeight: 500,
-              background: LABEL_STYLES[email.label]?.bg,
-              color: LABEL_STYLES[email.label]?.color,
-            }}
-          >
+          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 500, background: LABEL_STYLES[email.label]?.bg, color: LABEL_STYLES[email.label]?.color }}>
             {email.label.charAt(0).toUpperCase() + email.label.slice(1)}
           </span>
         )}
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 28px" }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: 16,
-            marginBottom: 24,
-          }}
-        >
-          <Avatar initials={email.avatar} color={email.avatarColor} size={42} />
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span style={{ fontWeight: 600, fontSize: 15, color: "#202124" }}>
-                {email.sender}
-              </span>
-              <span style={{ fontSize: 13, color: "#5f6368" }}>
-                {email.time}
-              </span>
-            </div>
-            <span style={{ fontSize: 12, color: "#5f6368" }}>to me</span>
-          </div>
-        </div>
+      {/* Scrollable body */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px" }}>
 
-        <div
-          style={{
-            fontSize: 14,
-            color: "#202124",
-            lineHeight: 1.8,
-            whiteSpace: "pre-wrap",
-            paddingLeft: 58,
-          }}
-        >
-          {email.body}
-        </div>
+        {/* Message card */}
+        <div style={{ border: "0.5px solid #e0e0e0", borderRadius: 8, padding: "20px 24px", marginBottom: 16 }}>
 
-        {email.hasAttachment && (
-          <div
-            style={{
-              marginTop: 28,
-              marginLeft: 58,
-              display: "flex",
-              gap: 12,
-            }}
-          >
-            {["document.pdf", "attachment.zip"].slice(0, 1).map((f) => (
-              <div
-                key={f}
-                style={{
-                  border: "0.5px solid #e0e0e0",
-                  borderRadius: 8,
-                  padding: "10px 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 13,
-                  color: "#202124",
-                  cursor: "pointer",
-                  background: "#f8f9fa",
-                }}
-              >
-                <MdAttachFile size={16} /> <span>{f}</span>
+          {/* Sender row */}
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
+            <Avatar initials={email.avatar} color={email.avatarColor} size={40} />
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0, flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, fontSize: 14, color: "#202124" }}>{senderName}</span>
+                  {senderEmail && (
+                    <span style={{ fontSize: 12, color: "#5f6368" }}>&lt;{senderEmail}&gt;</span>
+                  )}
+                </div>
+                <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>{fullDate}</span>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
 
-      <div
-        style={{
-          padding: "16px 28px 20px 86px",
-          borderTop: "0.5px solid #e0e0e0",
-          display: "flex",
-          gap: 12,
-        }}
-      >
-        <button
-          onClick={onReply}
-          style={{
-            border: "0.5px solid #ccc",
-            background: "#fff",
-            borderRadius: 20,
-            padding: "8px 20px",
-            fontSize: 13,
-            cursor: "pointer",
-            color: "#202124",
-            fontWeight: 500,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <MdReply size={16} /> Reply
-        </button>
-        <button
-          style={{
-            border: "0.5px solid #ccc",
-            background: "#fff",
-            borderRadius: 20,
-            padding: "8px 20px",
-            fontSize: 13,
-            cursor: "pointer",
-            color: "#202124",
-            fontWeight: 500,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <MdForward size={16} /> Forward
-        </button>
+              {/* to me / details toggle */}
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, cursor: "pointer" }}
+                onClick={() => setShowDetails((v) => !v)}
+              >
+                <span style={{ fontSize: 12, color: "#5f6368" }}>
+                  to {toEmail || "me"}
+                </span>
+                <MdKeyboardArrowDown
+                  size={16}
+                  color="#5f6368"
+                  style={{ transform: showDetails ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+                />
+              </div>
+
+              {/* Expanded details */}
+              {showDetails && (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#5f6368", lineHeight: 1.8 }}>
+                  <div><span style={{ display: "inline-block", minWidth: 40 }}>from:</span> {senderName} &lt;{senderEmail}&gt;</div>
+                  <div><span style={{ display: "inline-block", minWidth: 40 }}>to:</span> {toEmail || "me"}</div>
+                  <div><span style={{ display: "inline-block", minWidth: 40 }}>date:</span> {fullDate}</div>
+                  <div><span style={{ display: "inline-block", minWidth: 40 }}>subject:</span> {email.subject}</div>
+                </div>
+              )}
+            </div>
+
+            {/* Action icons */}
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              <button onClick={onReply} title="Reply" style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              ><MdReply size={18} /></button>
+              <button title="Forward" style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              ><MdForward size={18} /></button>
+            </div>
+          </div>
+
+          {/* Body */}
+          {loadingDetail ? (
+            <div style={{ color: "#5f6368", fontSize: 13, padding: "20px 0" }}>Loading message...</div>
+          ) : detail?.html ? (
+            <div
+              style={{ fontSize: 14, color: "#202124", lineHeight: 1.7 }}
+              dangerouslySetInnerHTML={{ __html: detail.html }}
+            />
+          ) : (
+            <div style={{ fontSize: 14, color: "#202124", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+              {detail?.text || "(No message content)"}
+            </div>
+          )}
+        </div>
+
+        {/* Reply / Forward buttons */}
+        <div style={{ display: "flex", gap: 12, paddingLeft: 4 }}>
+          <button
+            onClick={onReply}
+            style={{ border: "0.5px solid #ccc", background: "#fff", borderRadius: 20, padding: "8px 20px", fontSize: 13, cursor: "pointer", color: "#202124", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <MdReply size={16} /> Reply
+          </button>
+          <button
+            style={{ border: "0.5px solid #ccc", background: "#fff", borderRadius: 20, padding: "8px 20px", fontSize: 13, cursor: "pointer", color: "#202124", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}
+          >
+            <MdForward size={16} /> Forward
+          </button>
+        </div>
       </div>
     </div>
   );
