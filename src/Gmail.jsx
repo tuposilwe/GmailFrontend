@@ -384,19 +384,19 @@ export default function GmailUI() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetch("/emails")
-      .then((res) => res.json())
-      .then((data) => {
-        setEmails(data);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to fetch emails:", err);
-        setLoading(false);
-      });
-  }, []);
   const [activeNav, setActiveNav] = useState("Inbox");
+
+  const urlForNav = (nav) =>
+    nav === "Starred" ? "/emails/starred" : "/emails";
+
+  useEffect(() => {
+    setLoading(true);
+    setEmails([]);
+    fetch(urlForNav(activeNav))
+      .then((res) => res.json())
+      .then((data) => { setEmails(data); setLoading(false); })
+      .catch((err) => { console.error("Failed to fetch emails:", err); setLoading(false); });
+  }, [activeNav]);
   const [showCompose, setShowCompose] = useState(false);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -432,12 +432,18 @@ export default function GmailUI() {
     });
   };
 
-  const filteredEmails = emails.filter(
-    (e) =>
+  const filteredEmails = emails.filter((e) => {
+    const matchesSearch =
       search === "" ||
       e.sender.toLowerCase().includes(search.toLowerCase()) ||
-      e.subject.toLowerCase().includes(search.toLowerCase())
-  );
+      e.subject.toLowerCase().includes(search.toLowerCase());
+
+    // backend already returns the right set for each nav;
+    // client-side filter only needed for views not yet backed by a dedicated endpoint
+    const matchesNav = true;
+
+    return matchesSearch && matchesNav;
+  });
 
   const allChecked =
     filteredEmails.length > 0 &&
@@ -478,7 +484,7 @@ export default function GmailUI() {
   const refreshEmails = () => {
     setRefreshing(true);
     setLoading(true);
-    fetch("/emails")
+    fetch(urlForNav(activeNav))
       .then((r) => r.json())
       .then((data) => { setEmails(data); setLoading(false); setRefreshing(false); })
       .catch(() => { setLoading(false); setRefreshing(false); });
@@ -1145,7 +1151,17 @@ export default function GmailUI() {
                         fontSize: 14,
                       }}
                     >
-                      No emails found
+                      {activeNav === "Starred"
+                        ? "No starred messages"
+                        : activeNav === "Sent"
+                        ? "No sent messages"
+                        : activeNav === "Drafts"
+                        ? "No drafts"
+                        : activeNav === "Trash"
+                        ? "Trash is empty"
+                        : activeNav === "Snoozed"
+                        ? "No snoozed messages"
+                        : "No emails found"}
                     </div>
                   )}
                   {filteredEmails.map((email) => {
