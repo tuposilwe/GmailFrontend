@@ -1363,39 +1363,83 @@ export default function GmailUI() {
                         style={{
                           flex: 1,
                           display: "flex",
-                          alignItems: "center",
-                          gap: 6,
+                          flexDirection: "column",
+                          gap: 3,
                           overflow: "hidden",
+                          minWidth: 0,
                         }}
                       >
-                        <span
-                          style={{
-                            fontSize: 14,
-                            color: "#202124",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {email.subject}
-                        </span>
-                        <span
-                          style={{ color: "#ccc", fontSize: 12, flexShrink: 0 }}
-                        >
-                          —
-                        </span>
-                        <span
-                          style={{
-                            fontSize: 14,
-                            color: "#5f6368",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                          }}
-                        >
-                          {email.preview}
-                        </span>
+                        {/* Subject + preview line */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                          <span
+                            style={{
+                              fontSize: 14,
+                              color: "#202124",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {email.subject}
+                          </span>
+                          <span style={{ color: "#ccc", fontSize: 12, flexShrink: 0 }}>—</span>
+                          <span
+                            style={{
+                              fontSize: 14,
+                              color: "#5f6368",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {email.preview}
+                          </span>
+                        </div>
+
+                        {/* Attachment chips */}
+                        {email.attachments?.length > 0 && (
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                            {email.attachments.slice(0, 3).map((att, i) => {
+                              const isPdf = att.contentType === "application/pdf" ||
+                                att.filename?.toLowerCase().endsWith(".pdf");
+                              const isImage = att.contentType?.startsWith("image/");
+                              const Icon = isPdf ? MdPictureAsPdf : isImage ? MdImage : MdAttachFile;
+                              const chipBg = isPdf ? "#fce8e6" : "#f1f3f4";
+                              const chipColor = isPdf ? "#c5221f" : "#5f6368";
+                              return (
+                              <div
+                                key={i}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  background: chipBg,
+                                  borderRadius: 4,
+                                  padding: "2px 8px 2px 5px",
+                                  fontSize: 11,
+                                  color: chipColor,
+                                  fontWeight: isPdf ? 500 : 400,
+                                  maxWidth: 160,
+                                  overflow: "hidden",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <Icon size={13} style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {att.filename}
+                                </span>
+                              </div>
+                              );
+                            })}
+                            {email.attachments.length > 3 && (
+                              <div style={{ fontSize: 11, color: "#5f6368", alignSelf: "center" }}>
+                                +{email.attachments.length - 3} more
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
+
                       <div
                         style={{
                           display: "flex",
@@ -1404,9 +1448,6 @@ export default function GmailUI() {
                           flexShrink: 0,
                         }}
                       >
-                        {email.hasAttachment && (
-                          <MdAttachFile size={16} color="#5f6368" />
-                        )}
                         {email.label && (
                           <span
                             style={{
