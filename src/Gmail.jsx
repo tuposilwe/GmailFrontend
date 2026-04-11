@@ -435,7 +435,6 @@ export default function GmailUI() {
   }, []);
   const [activeNav, setActiveNav] = useState("Inbox");
   const [showCompose, setShowCompose] = useState(false);
-  const [activeTab, setActiveTab] = useState("Primary");
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -891,57 +890,6 @@ export default function GmailUI() {
                   overflow: "hidden",
                 }}
               >
-                {/* Tabs */}
-                <div
-                  style={{
-                    display: "flex",
-                    borderBottom: "0.5px solid #e0e0e0",
-                  }}
-                >
-                  {[
-                    {
-                      icon: MdInbox,
-                      label: "Primary",
-                      count: emails.filter((e) => e.unread).length,
-                    },
-                    { icon: MdLabel, label: "Promotions", count: 4 },
-                    { icon: MdSend, label: "Social", count: 2 },
-                  ].map((tab) => (
-                    <div
-                      key={tab.label}
-                      onClick={() => setActiveTab(tab.label)}
-                      style={{
-                        padding: "12px 20px",
-                        fontSize: 14,
-                        cursor: "pointer",
-                        borderBottom:
-                          activeTab === tab.label
-                            ? "2px solid #1a73e8"
-                            : "2px solid transparent",
-                        color: activeTab === tab.label ? "#1a73e8" : "#5f6368",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <tab.icon size={18} /> {tab.label}
-                      {tab.count > 0 && (
-                        <span
-                          style={{
-                            fontSize: 12,
-                            background: "#f1f3f4",
-                            padding: "1px 7px",
-                            borderRadius: 10,
-                            color: "#5f6368",
-                          }}
-                        >
-                          {tab.count}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
 
                 {/* Toolbar */}
                 <div
