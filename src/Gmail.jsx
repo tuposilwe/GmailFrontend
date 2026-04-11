@@ -251,6 +251,53 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread }) {
   const [showDetails, setShowDetails] = useState(false);
   const [downloadingIdx, setDownloadingIdx] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showMoveMenu, setShowMoveMenu] = useState(false);
+  const [mailboxes, setMailboxes] = useState([]);
+  const [acting, setActing] = useState(false);
+
+  const act = async (endpoint, method = "POST") => {
+    setActing(true);
+    try {
+      await fetch(`/emails/${email.id}/${endpoint}`, { method });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handleArchive = async () => { await act("archive"); onDelete(); };
+  const handleSpam    = async () => { await act("spam");    onDelete(); };
+  const handleDelete  = async () => { await act("trash");   onDelete(); };
+  const handleUnread  = async () => { await act("mark-unread"); onMarkUnread(); };
+  const handleRead    = async () => { await act("mark-read"); onClose(); setShowMoreMenu(false); };
+  const handleStar    = async () => { await act("star"); setShowMoreMenu(false); };
+
+  const openMoveMenu = async () => {
+    setShowMoveMenu(true);
+    if (mailboxes.length === 0) {
+      const res = await fetch("/mailboxes");
+      const data = await res.json();
+      setMailboxes(data.filter(m => !m.specialUse?.includes("\\Sent") && !m.specialUse?.includes("\\Drafts")));
+    }
+  };
+
+  const handleMove = async (mailboxPath) => {
+    setActing(true);
+    setShowMoveMenu(false);
+    try {
+      await fetch(`/emails/${email.id}/move`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mailbox: mailboxPath }),
+      });
+      onDelete();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setActing(false);
+    }
+  };
 
   const downloadAttachment = async (index, filename) => {
     setDownloadingIdx(index);
@@ -309,7 +356,7 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread }) {
     <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", minWidth: 0 }}>
 
       {/* Toolbar */}
-      <div style={{ display: "flex", alignItems: "center", padding: "4px 8px", borderBottom: "0.5px solid #e0e0e0", gap: 0, flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", padding: "4px 8px", borderBottom: "0.5px solid #e0e0e0", gap: 0, flexShrink: 0, position: "relative" }}>
 
         {/* Back */}
         {iconBtn(onClose, "Back to Inbox", <MdArrowBack size={20} />)}
@@ -317,54 +364,84 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread }) {
         <div style={{ width: 8 }} />
 
         {/* Primary actions */}
-        {iconBtn((e) => { e.stopPropagation(); onDelete(); }, "Archive", <MdArchive size={20} />)}
-        {iconBtn((e) => { e.stopPropagation(); }, "Report spam", <MdReport size={20} />)}
-        {iconBtn((e) => { e.stopPropagation(); onDelete(); }, "Delete", <MdDelete size={20} />)}
+        {iconBtn(handleArchive, "Archive",      <MdArchive size={20} />)}
+        {iconBtn(handleSpam,    "Report spam",  <MdReport size={20} />)}
+        {iconBtn(handleDelete,  "Delete",       <MdDelete size={20} />)}
 
         <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
 
         {/* Secondary actions */}
-        {iconBtn((e) => { e.stopPropagation(); onMarkUnread(); }, "Mark as unread", <MdMarkEmailUnread size={20} />)}
-        {iconBtn((e) => { e.stopPropagation(); }, "Snooze", <MdAccessTime size={20} />)}
+        {iconBtn(handleUnread, "Mark as unread", <MdMarkEmailUnread size={20} />)}
+        {iconBtn(() => {}, "Snooze", <MdAccessTime size={20} />)}
 
         <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
 
-        {/* Move / Labels */}
-        {iconBtn((e) => { e.stopPropagation(); }, "Move to", <MdDriveFileMove size={20} />)}
-        {iconBtn((e) => { e.stopPropagation(); }, "Labels", <MdLabel size={20} />)}
+        {/* Move to */}
+        <div style={{ position: "relative" }}>
+          {iconBtn(openMoveMenu, "Move to", <MdDriveFileMove size={20} />)}
+          {showMoveMenu && (
+            <>
+              <div onClick={() => setShowMoveMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
+              <div style={{ position: "absolute", top: 44, left: 0, background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", zIndex: 100, minWidth: 220, maxHeight: 320, overflowY: "auto", padding: "4px 0", border: "0.5px solid #e0e0e0" }}>
+                <div style={{ padding: "8px 16px 4px", fontSize: 12, color: "#5f6368", fontWeight: 500 }}>Move to</div>
+                {mailboxes.length === 0
+                  ? <div style={{ padding: "10px 20px", fontSize: 14, color: "#5f6368" }}>Loading...</div>
+                  : mailboxes.map(mb => (
+                    <div
+                      key={mb.path}
+                      onClick={() => handleMove(mb.path)}
+                      style={{ padding: "10px 20px", fontSize: 14, color: "#202124", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <MdOutbox size={16} color="#5f6368" />
+                      {mb.name}
+                    </div>
+                  ))
+                }
+              </div>
+            </>
+          )}
+        </div>
+
+        {iconBtn(() => {}, "Labels", <MdLabel size={20} />)}
 
         <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
 
         {/* More */}
         <div style={{ position: "relative" }}>
-          {iconBtn((e) => { e.stopPropagation(); setShowMoreMenu(v => !v); }, "More", <MdMoreVert size={20} />)}
+          {iconBtn(() => setShowMoreMenu(v => !v), "More", <MdMoreVert size={20} />)}
           {showMoreMenu && (
             <>
               <div onClick={() => setShowMoreMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
-              <div style={{ position: "absolute", top: 44, left: 0, background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", zIndex: 100, minWidth: 200, padding: "4px 0", border: "0.5px solid #e0e0e0" }}>
+              <div style={{ position: "absolute", top: 44, left: 0, background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", zIndex: 100, minWidth: 220, padding: "4px 0", border: "0.5px solid #e0e0e0" }}>
                 {[
-                  "Mark as read",
-                  "Mark as important",
-                  "Add star",
-                  "Create event",
-                  "Filter messages like these",
-                  "Mute",
-                  "Print",
-                ].map((item) => (
+                  { label: "Mark as read",              action: handleRead },
+                  { label: "Add star",                   action: handleStar },
+                  { label: "Print",                      action: () => { window.print(); setShowMoreMenu(false); } },
+                  { label: "Report phishing",            action: () => { handleSpam(); } },
+                  { label: "Filter messages like these", action: () => setShowMoreMenu(false) },
+                  { label: "Mute",                       action: () => setShowMoreMenu(false) },
+                ].map(({ label, action }) => (
                   <div
-                    key={item}
-                    onClick={() => setShowMoreMenu(false)}
+                    key={label}
+                    onClick={action}
                     style={{ padding: "10px 20px", fontSize: 14, color: "#202124", cursor: "pointer" }}
                     onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
                   >
-                    {item}
+                    {label}
                   </div>
                 ))}
               </div>
             </>
           )}
         </div>
+
+        {/* Disable overlay while acting */}
+        {acting && (
+          <div style={{ position: "absolute", inset: 0, zIndex: 50, cursor: "wait" }} />
+        )}
       </div>
 
       {/* Subject line */}
