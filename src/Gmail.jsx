@@ -381,6 +381,8 @@ export default function GmailUI() {
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [hoveredId, setHoveredId] = useState(null);
   const [showSelectDropdown, setShowSelectDropdown] = useState(false);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetch("/emails")
@@ -471,6 +473,20 @@ export default function GmailUI() {
   const deleteChecked = () => {
     setEmails((prev) => prev.filter((em) => !checkedIds.has(em.id)));
     setCheckedIds(new Set());
+  };
+
+  const refreshEmails = () => {
+    setRefreshing(true);
+    setLoading(true);
+    fetch("/emails")
+      .then((r) => r.json())
+      .then((data) => { setEmails(data); setLoading(false); setRefreshing(false); })
+      .catch(() => { setLoading(false); setRefreshing(false); });
+  };
+
+  const markAllRead = () => {
+    setEmails((prev) => prev.map((em) => ({ ...em, unread: false })));
+    setShowMoreMenu(false);
   };
 
   return (
@@ -1012,6 +1028,98 @@ export default function GmailUI() {
                       ))}
                     </>
                   ) : null}
+
+                  {/* Refresh + more menu — right next to multiselect */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    {/* Refresh */}
+                    <button
+                      onClick={refreshEmails}
+                      title="Refresh"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        borderRadius: "50%",
+                        width: 36,
+                        height: 36,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "#5f6368",
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                    >
+                      <MdRefresh
+                        size={20}
+                        style={{
+                          transition: "transform 0.5s",
+                          transform: refreshing ? "rotate(360deg)" : "rotate(0deg)",
+                        }}
+                      />
+                    </button>
+
+                    {/* Three-dots menu */}
+                    <div style={{ position: "relative" }}>
+                      <button
+                        onClick={() => setShowMoreMenu((v) => !v)}
+                        title="More"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          borderRadius: "50%",
+                          width: 36,
+                          height: 36,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color: "#5f6368",
+                        }}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                      >
+                        <MdMoreVert size={20} />
+                      </button>
+
+                      {showMoreMenu && (
+                        <>
+                          <div
+                            onClick={() => setShowMoreMenu(false)}
+                            style={{ position: "fixed", inset: 0, zIndex: 99 }}
+                          />
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 38,
+                              left: 0,
+                              background: "#fff",
+                              borderRadius: 8,
+                              boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                              zIndex: 100,
+                              minWidth: 180,
+                              padding: "4px 0",
+                              border: "0.5px solid #e0e0e0",
+                            }}
+                          >
+                            {[
+                              { label: "Mark all as read", action: markAllRead },
+                            ].map(({ label, action }) => (
+                              <div
+                                key={label}
+                                onClick={action}
+                                style={{ padding: "10px 20px", fontSize: 14, color: "#202124", cursor: "pointer" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                              >
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Email List */}
