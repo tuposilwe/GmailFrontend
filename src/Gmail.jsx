@@ -23,6 +23,10 @@ import {
   MdMoreVert,
   MdRefresh,
   MdKeyboardArrowDown,
+  MdDownload,
+  MdInsertDriveFile,
+  MdImage,
+  MdPictureAsPdf,
 } from "react-icons/md";
 
 const LABEL_STYLES = {
@@ -240,6 +244,28 @@ function EmailDetail({ email, onClose, onReply }) {
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
+  const [downloadingIdx, setDownloadingIdx] = useState(null);
+
+  const downloadAttachment = async (index, filename) => {
+    setDownloadingIdx(index);
+    try {
+      const res = await fetch(`/emails/${email.id}/attachments/${index}`);
+      if (!res.ok) throw new Error("Failed to fetch attachment");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Download failed:", err);
+    } finally {
+      setDownloadingIdx(null);
+    }
+  };
 
   useEffect(() => {
     setLoadingDetail(true);
@@ -351,6 +377,72 @@ function EmailDetail({ email, onClose, onReply }) {
           ) : (
             <div style={{ fontSize: 14, color: "#202124", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
               {detail?.text || "(No message content)"}
+            </div>
+          )}
+
+          {/* Attachments */}
+          {!loadingDetail && detail?.attachments?.length > 0 && (
+            <div style={{ marginTop: 24, borderTop: "0.5px solid #e0e0e0", paddingTop: 16 }}>
+              <div style={{ fontSize: 13, color: "#5f6368", marginBottom: 10 }}>
+                {detail.attachments.length} attachment{detail.attachments.length > 1 ? "s" : ""}
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                {detail.attachments.map((att) => {
+                  const isImage = att.contentType.startsWith("image/");
+                  const isPdf = att.contentType === "application/pdf";
+                  const AttIcon = isImage ? MdImage : isPdf ? MdPictureAsPdf : MdInsertDriveFile;
+                  const iconColor = isImage ? "#34A853" : isPdf ? "#EA4335" : "#1a73e8";
+                  const sizeLabel = att.size >= 1024 * 1024
+                    ? `${(att.size / (1024 * 1024)).toFixed(1)} MB`
+                    : att.size >= 1024
+                    ? `${(att.size / 1024).toFixed(0)} KB`
+                    : `${att.size} B`;
+
+                  return (
+                    <div
+                      key={att.index}
+                      style={{
+                        border: "0.5px solid #e0e0e0",
+                        borderRadius: 8,
+                        width: 220,
+                        overflow: "hidden",
+                        background: "#f8f9fa",
+                      }}
+                    >
+                      {/* Preview area */}
+                      <div style={{
+                        height: 80,
+                        background: "#f1f3f4",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        borderBottom: "0.5px solid #e0e0e0",
+                      }}>
+                        <AttIcon size={36} color={iconColor} />
+                      </div>
+
+                      {/* Info + download row */}
+                      <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+                        <AttIcon size={16} color={iconColor} style={{ flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: "#202124", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {att.filename}
+                          </div>
+                          <div style={{ fontSize: 11, color: "#5f6368" }}>{sizeLabel}</div>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); downloadAttachment(att.index, att.filename); }}
+                          title="Download"
+                          disabled={downloadingIdx === att.index}
+                          style={{ background: "none", border: "none", cursor: downloadingIdx === att.index ? "default" : "pointer", color: "#5f6368", display: "flex", flexShrink: 0, padding: 0, opacity: downloadingIdx === att.index ? 0.4 : 1 }}
+                        >
+                          <MdDownload size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
