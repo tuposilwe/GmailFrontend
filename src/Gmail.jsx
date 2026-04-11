@@ -1,4 +1,29 @@
 import { useState, useEffect } from "react";
+import {
+  MdInbox,
+  MdStar,
+  MdStarBorder,
+  MdSchedule,
+  MdSend,
+  MdDrafts,
+  MdDelete,
+  MdSearch,
+  MdEdit,
+  MdAttachFile,
+  MdArrowBack,
+  MdReply,
+  MdForward,
+  MdArchive,
+  MdMarkEmailRead,
+  MdMarkEmailUnread,
+  MdClose,
+  MdMenu,
+  MdLabel,
+  MdArrowDropDown,
+  MdMoreVert,
+  MdRefresh,
+  MdKeyboardArrowDown,
+} from "react-icons/md";
 
 const LABEL_STYLES = {
   work: { bg: "#fce8e6", color: "#c5221f" },
@@ -7,12 +32,12 @@ const LABEL_STYLES = {
 };
 
 const NAV_ITEMS = [
-  { icon: "📥", label: "Inbox", badge: 5 },
-  { icon: "⭐", label: "Starred" },
-  { icon: "🕐", label: "Snoozed" },
-  { icon: "📤", label: "Sent" },
-  { icon: "📝", label: "Drafts", badge: 3 },
-  { icon: "🗑️", label: "Trash" },
+  { icon: MdInbox, label: "Inbox", badge: 5 },
+  { icon: MdStar, label: "Starred" },
+  { icon: MdSchedule, label: "Snoozed" },
+  { icon: MdSend, label: "Sent" },
+  { icon: MdDrafts, label: "Drafts", badge: 3 },
+  { icon: MdDelete, label: "Trash" },
 ];
 
 function Avatar({ initials, color, size = 36 }) {
@@ -105,12 +130,9 @@ function ComposeModal({ onClose }) {
         }}
       >
         <span>New Message</span>
-        <div style={{ display: "flex", gap: 14, cursor: "pointer" }}>
-          <span style={{ opacity: 0.8 }}>—</span>
-          <span style={{ opacity: 0.8 }}>⤢</span>
-          <span onClick={onClose} style={{ opacity: 0.8 }}>
-            ✕
-          </span>
+        <div style={{ display: "flex", gap: 14, cursor: "pointer", alignItems: "center" }}>
+          <MdKeyboardArrowDown size={18} style={{ opacity: 0.8 }} />
+          <MdClose onClick={onClose} size={18} style={{ opacity: 0.8 }} />
         </div>
       </div>
 
@@ -178,20 +200,21 @@ function ComposeModal({ onClose }) {
         >
           {sending ? "Sending..." : "Send"}
         </button>
-        {["📎", "🔗", "😊", "🖼️"].map((icon) => (
+        {[MdAttachFile, MdMoreVert].map((Icon) => (
           <button
-            key={icon}
+            key={Icon.name}
             style={{
               background: "none",
               border: "none",
               cursor: "pointer",
-              fontSize: 16,
               padding: "6px 8px",
               borderRadius: "50%",
               color: "#5f6368",
+              display: "flex",
+              alignItems: "center",
             }}
           >
-            {icon}
+            <Icon size={18} />
           </button>
         ))}
         <div style={{ flex: 1 }} />
@@ -200,12 +223,13 @@ function ComposeModal({ onClose }) {
             background: "none",
             border: "none",
             cursor: "pointer",
-            fontSize: 16,
             padding: "6px 8px",
             color: "#5f6368",
+            display: "flex",
+            alignItems: "center",
           }}
         >
-          🗑️
+          <MdDelete size={18} />
         </button>
       </div>
     </div>
@@ -238,13 +262,14 @@ function EmailDetail({ email, onClose, onReply }) {
             background: "none",
             border: "none",
             cursor: "pointer",
-            fontSize: 20,
             color: "#5f6368",
             padding: "4px 8px",
             borderRadius: 4,
+            display: "flex",
+            alignItems: "center",
           }}
         >
-          ←
+          <MdArrowBack size={20} />
         </button>
         <span
           style={{ fontSize: 16, fontWeight: 600, color: "#202124", flex: 1 }}
@@ -333,7 +358,7 @@ function EmailDetail({ email, onClose, onReply }) {
                   background: "#f8f9fa",
                 }}
               >
-                📎 <span>{f}</span>
+                <MdAttachFile size={16} /> <span>{f}</span>
               </div>
             ))}
           </div>
@@ -364,7 +389,7 @@ function EmailDetail({ email, onClose, onReply }) {
             gap: 6,
           }}
         >
-          ↩ Reply
+          <MdReply size={16} /> Reply
         </button>
         <button
           style={{
@@ -381,7 +406,7 @@ function EmailDetail({ email, onClose, onReply }) {
             gap: 6,
           }}
         >
-          ↪ Forward
+          <MdForward size={16} /> Forward
         </button>
       </div>
     </div>
@@ -536,33 +561,7 @@ export default function GmailUI() {
           onMouseEnter={(e) => (e.currentTarget.style.background = "#e0e0e0")}
           onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
         >
-          <span
-            style={{
-              display: "block",
-              width: 18,
-              height: 2,
-              background: "#5f6368",
-              borderRadius: 1,
-            }}
-          />
-          <span
-            style={{
-              display: "block",
-              width: 18,
-              height: 2,
-              background: "#5f6368",
-              borderRadius: 1,
-            }}
-          />
-          <span
-            style={{
-              display: "block",
-              width: 18,
-              height: 2,
-              background: "#5f6368",
-              borderRadius: 1,
-            }}
-          />
+          <MdMenu size={22} color="#5f6368" />
         </button>
 
         {/* Gmail logo */}
@@ -596,7 +595,7 @@ export default function GmailUI() {
             maxWidth: 720,
           }}
         >
-          <span style={{ fontSize: 16, color: "#5f6368" }}>🔍</span>
+          <MdSearch size={20} color="#5f6368" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -612,12 +611,12 @@ export default function GmailUI() {
             }}
           />
           {search && (
-            <span
+            <MdClose
               onClick={() => setSearch("")}
-              style={{ cursor: "pointer", color: "#5f6368", fontSize: 16 }}
-            >
-              ✕
-            </span>
+              size={18}
+              color="#5f6368"
+              style={{ cursor: "pointer", flexShrink: 0 }}
+            />
           )}
         </div>
 
@@ -709,7 +708,7 @@ export default function GmailUI() {
                 whiteSpace: "nowrap",
               }}
             >
-              <span style={{ fontSize: 20, flexShrink: 0 }}>✏️</span>
+              <MdEdit size={20} style={{ flexShrink: 0 }} />
               <span
                 style={{
                   opacity: isExpanded ? 1 : 0,
@@ -753,7 +752,7 @@ export default function GmailUI() {
                 position: "relative",
               }}
             >
-              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+              <item.icon size={20} style={{ flexShrink: 0 }} />
               <span
                 style={{
                   flex: 1,
@@ -842,15 +841,7 @@ export default function GmailUI() {
                   whiteSpace: "nowrap",
                 }}
               >
-                <span
-                  style={{
-                    fontSize: isExpanded ? 12 : 14,
-                    color: style.color,
-                    flexShrink: 0,
-                  }}
-                >
-                  ●
-                </span>
+                <MdLabel size={18} style={{ color: style.color, flexShrink: 0 }} />
                 <span
                   style={{
                     opacity: isExpanded ? 1 : 0,
@@ -909,12 +900,12 @@ export default function GmailUI() {
                 >
                   {[
                     {
-                      icon: "📥",
+                      icon: MdInbox,
                       label: "Primary",
                       count: emails.filter((e) => e.unread).length,
                     },
-                    { icon: "🏷️", label: "Promotions", count: 4 },
-                    { icon: "👥", label: "Social", count: 2 },
+                    { icon: MdLabel, label: "Promotions", count: 4 },
+                    { icon: MdSend, label: "Social", count: 2 },
                   ].map((tab) => (
                     <div
                       key={tab.label}
@@ -934,7 +925,7 @@ export default function GmailUI() {
                         transition: "all 0.15s",
                       }}
                     >
-                      {tab.icon} {tab.label}
+                      <tab.icon size={18} /> {tab.label}
                       {tab.count > 0 && (
                         <span
                           style={{
@@ -1003,11 +994,10 @@ export default function GmailUI() {
                         justifyContent: "center",
                         cursor: "pointer",
                         color: "#5f6368",
-                        fontSize: 10,
                         userSelect: "none",
                       }}
                     >
-                      ▾
+                      <MdArrowDropDown size={18} />
                     </div>
 
                     {/* Dropdown menu */}
@@ -1084,11 +1074,11 @@ export default function GmailUI() {
                         {checkedIds.size} selected
                       </span>
                       {[
-                        { label: "Archive", icon: "📦", action: deleteChecked },
-                        { label: "Delete", icon: "🗑️", action: deleteChecked },
-                        { label: "Mark read", icon: "✉️", action: markCheckedRead },
-                        { label: "Mark unread", icon: "📩", action: markCheckedUnread },
-                      ].map(({ label, icon, action }) => (
+                        { label: "Archive", Icon: MdArchive, action: deleteChecked },
+                        { label: "Delete", Icon: MdDelete, action: deleteChecked },
+                        { label: "Mark read", Icon: MdMarkEmailRead, action: markCheckedRead },
+                        { label: "Mark unread", Icon: MdMarkEmailUnread, action: markCheckedUnread },
+                      ].map(({ label, Icon, action }) => (
                         <button
                           key={label}
                           onClick={action}
@@ -1103,13 +1093,12 @@ export default function GmailUI() {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            fontSize: 16,
                             color: "#5f6368",
                           }}
                           onMouseEnter={(e) => (e.currentTarget.style.background = "#d2e3fc")}
                           onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                         >
-                          {icon}
+                          <Icon size={18} />
                         </button>
                       ))}
                     </>
@@ -1220,14 +1209,17 @@ export default function GmailUI() {
                       <span
                         onClick={(e) => toggleStar(email.id, e)}
                         style={{
-                          fontSize: 16,
                           cursor: "pointer",
                           flexShrink: 0,
                           color: email.starred ? "#F4B400" : "#ccc",
+                          display: "flex",
+                          alignItems: "center",
                           transition: "color 0.15s",
                         }}
                       >
-                        {email.starred ? "★" : "☆"}
+                        {email.starred
+                          ? <MdStar size={18} />
+                          : <MdStarBorder size={18} />}
                       </span>
                       <span
                         style={{
@@ -1288,9 +1280,7 @@ export default function GmailUI() {
                         }}
                       >
                         {email.hasAttachment && (
-                          <span style={{ fontSize: 14, color: "#5f6368" }}>
-                            📎
-                          </span>
+                          <MdAttachFile size={16} color="#5f6368" />
                         )}
                         {email.label && (
                           <span
