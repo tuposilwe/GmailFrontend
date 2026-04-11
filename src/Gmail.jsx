@@ -27,6 +27,8 @@ import {
   MdInsertDriveFile,
   MdImage,
   MdPictureAsPdf,
+  MdUnsubscribe,
+  MdAccessTime,
 } from "react-icons/md";
 
 const LABEL_STYLES = {
@@ -1458,36 +1460,105 @@ export default function GmailUI() {
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: 8,
+                          gap: 2,
                           flexShrink: 0,
+                          minWidth: 190,
+                          justifyContent: "flex-end",
                         }}
                       >
-                        {email.label && (
-                          <span
-                            style={{
-                              fontSize: 11,
-                              padding: "2px 7px",
-                              borderRadius: 4,
-                              fontWeight: 500,
-                              background: LABEL_STYLES[email.label]?.bg,
-                              color: LABEL_STYLES[email.label]?.color,
-                            }}
-                          >
-                            {email.label.charAt(0).toUpperCase() +
-                              email.label.slice(1)}
-                          </span>
+                        {isHovered ? (
+                          /* Hover action buttons */
+                          <>
+                            {/* Unsubscribe — text only */}
+                            <button
+                              title="Unsubscribe"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                background: "none",
+                                border: "0.5px solid #c5c5c5",
+                                borderRadius: 4,
+                                cursor: "pointer",
+                                color: "#444746",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                padding: "2px 8px",
+                                marginRight: 4,
+                                whiteSpace: "nowrap",
+                                lineHeight: "20px",
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = "#f1f3f4";
+                                e.currentTarget.style.borderColor = "#444746";
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = "none";
+                                e.currentTarget.style.borderColor = "#c5c5c5";
+                              }}
+                            >
+                              Unsubscribe
+                            </button>
+
+                            {/* Icon action buttons */}
+                            {[
+                              { Icon: MdArchive,         title: "Archive",        action: (e) => { e.stopPropagation(); setEmails(prev => prev.filter(em => em.id !== email.id)); } },
+                              { Icon: MdDelete,          title: "Delete",         action: (e) => { e.stopPropagation(); setEmails(prev => prev.filter(em => em.id !== email.id)); } },
+                              { Icon: MdMarkEmailUnread, title: "Mark as unread", action: (e) => { e.stopPropagation(); setEmails(prev => prev.map(em => em.id === email.id ? { ...em, unread: true } : em)); } },
+                              { Icon: MdAccessTime,      title: "Snooze",         action: (e) => { e.stopPropagation(); } },
+                            ].map(({ Icon, title, action }) => (
+                              <button
+                                key={title}
+                                title={title}
+                                onClick={action}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  cursor: "pointer",
+                                  color: "#5f6368",
+                                  width: 28,
+                                  height: 28,
+                                  borderRadius: "50%",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  flexShrink: 0,
+                                }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                              >
+                                <Icon size={16} />
+                              </button>
+                            ))}
+                          </>
+                        ) : (
+                          /* Normal: label chip + time */
+                          <>
+                            {email.label && email.label !== "inbox" && (
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  padding: "2px 7px",
+                                  borderRadius: 4,
+                                  fontWeight: 500,
+                                  background: LABEL_STYLES[email.label]?.bg,
+                                  color: LABEL_STYLES[email.label]?.color,
+                                }}
+                              >
+                                {email.label.charAt(0).toUpperCase() + email.label.slice(1)}
+                              </span>
+                            )}
+                            <span
+                              style={{
+                                fontSize: 12,
+                                color: "#5f6368",
+                                minWidth: 52,
+                                textAlign: "right",
+                                fontWeight: email.unread ? 700 : 400,
+                              }}
+                            >
+                              {email.time}
+                            </span>
+                          </>
                         )}
-                        <span
-                          style={{
-                            fontSize: 12,
-                            color: "#5f6368",
-                            minWidth: 52,
-                            textAlign: "right",
-                            fontWeight: email.unread ? 700 : 400,
-                          }}
-                        >
-                          {email.time}
-                        </span>
                       </div>
                     </div>
                   );
