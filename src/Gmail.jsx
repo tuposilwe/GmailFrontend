@@ -1404,36 +1404,50 @@ export default function GmailUI() {
                                 att.filename?.toLowerCase().endsWith(".pdf");
                               const isImage = att.contentType?.startsWith("image/");
                               const Icon = isPdf ? MdPictureAsPdf : isImage ? MdImage : MdAttachFile;
-                              const chipBg = isPdf ? "#fce8e6" : "#f1f3f4";
-                              const chipColor = isPdf ? "#c5221f" : "#5f6368";
                               return (
-                              <div
-                                key={i}
-                                style={{
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 3,
-                                  background: chipBg,
-                                  borderRadius: 4,
-                                  padding: "2px 8px 2px 5px",
-                                  fontSize: 11,
-                                  color: chipColor,
-                                  fontWeight: isPdf ? 500 : 400,
-                                  maxWidth: 160,
-                                  overflow: "hidden",
-                                  flexShrink: 0,
-                                }}
-                              >
-                                <Icon size={13} style={{ flexShrink: 0 }} />
-                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                  {att.filename}
-                                </span>
-                              </div>
+                                <div
+                                  key={i}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    borderRadius: 12,
+                                    padding: "3px 10px 3px 7px",
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    maxWidth: 180,
+                                    overflow: "hidden",
+                                    flexShrink: 0,
+                                    background: "#f1f3f4",
+                                    color: "#444746",
+                                  }}
+                                >
+                                  <Icon
+                                    size={15}
+                                    style={{
+                                      flexShrink: 0,
+                                      color: isPdf ? "#c5221f" : "#5f6368",
+                                    }}
+                                  />
+                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    {att.filename}
+                                  </span>
+                                </div>
                               );
                             })}
                             {email.attachments.length > 3 && (
-                              <div style={{ fontSize: 11, color: "#5f6368", alignSelf: "center" }}>
-                                +{email.attachments.length - 3} more
+                              <div
+                                style={{
+                                  borderRadius: 12,
+                                  padding: "3px 9px",
+                                  background: "#f1f3f4",
+                                  fontSize: 12,
+                                  color: "#444746",
+                                  fontWeight: 500,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                +{email.attachments.length - 3}
                               </div>
                             )}
                           </div>
