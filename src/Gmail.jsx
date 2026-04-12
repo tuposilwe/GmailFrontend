@@ -31,6 +31,7 @@ import {
   MdPictureAsPdf,
   MdUnsubscribe,
   MdAccessTime,
+  MdVerified,
   MdReport,
   MdDriveFileMove,
   MdOutbox,
@@ -70,6 +71,67 @@ function Avatar({ initials, color, size = 36 }) {
       }}
     >
       {initials}
+    </div>
+  );
+}
+
+function SenderAvatar({ senderEmail, initials, color, size = 40, verified = false }) {
+  const domain  = senderEmail ? senderEmail.split("@")[1] : "";
+  const logoUrl = domain ? `/logo?domain=${domain}` : "";
+
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  // Reset when we open a different email (key prop handles this, but guard anyway)
+  useEffect(() => { setLoaded(false); setFailed(false); }, [senderEmail]);
+
+  const badge = verified && (
+    <div
+      style={{
+        position: "absolute", bottom: -3, right: -3,
+        background: "#fff", borderRadius: "50%",
+        width: 18, height: 18,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <MdVerified size={16} color="#1a73e8" />
+    </div>
+  );
+
+  // No domain or all sources failed → coloured initials + optional badge
+  if (failed || !domain) {
+    return (
+      <div style={{ position: "relative", flexShrink: 0, width: size, height: size }}>
+        <Avatar initials={initials} color={color} size={size} />
+        {badge}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: "relative", flexShrink: 0, width: size, height: size }}>
+      {/* Show initials until the logo resolves */}
+      {!loaded && <Avatar initials={initials} color={color} size={size} />}
+
+      <img
+        key={logoUrl}
+        src={logoUrl}
+        onLoad={() => setLoaded(true)}
+        onError={() => setFailed(true)}
+        alt=""
+        style={{
+          position:  loaded ? "static" : "absolute",
+          opacity:   loaded ? 1 : 0,
+          width: size, height: size,
+          borderRadius: "50%",
+          objectFit: "cover",
+          border: "0.5px solid #e0e0e0",
+          background: "#fff",
+          display: "block",
+        }}
+      />
+
+      {badge}
     </div>
   );
 }
@@ -516,7 +578,14 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
 
           {/* Sender row */}
           <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
-            <Avatar initials={email.avatar} color={email.avatarColor} size={40} />
+            <SenderAvatar
+              key={senderEmail}
+              senderEmail={senderEmail}
+              initials={email.avatar}
+              color={email.avatarColor}
+              size={40}
+              verified={!!(detail?.verified ?? email.verified)}
+            />
 
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
