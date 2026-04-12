@@ -1296,11 +1296,13 @@ function EmailDetail({
   onNext,
   emailPosition,
   totalEmails,
+  folder,
 }) {
+  const folderParam = folder === "sent" ? "?folder=sent" : "";
   const { data: detail, isLoading: loadingDetail } = useQuery({
-    queryKey: ["email", email.id],
-    queryFn: () => fetch(`/emails/${email.id}`).then((r) => r.json()),
-    staleTime: Infinity, // email bodies never change once fetched
+    queryKey: ["email", email.id, folder],
+    queryFn: () => fetch(`/emails/${email.id}${folderParam}`).then((r) => r.json()),
+    staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
   });
   const [showDetails, setShowDetails] = useState(false);
@@ -1393,7 +1395,7 @@ function EmailDetail({
   const downloadAttachment = async (index, filename) => {
     setDownloadingIdx(index);
     try {
-      const res = await fetch(`/emails/${email.id}/attachments/${index}`);
+      const res = await fetch(`/emails/${email.id}/attachments/${index}${folderParam}`);
       if (!res.ok) throw new Error("Failed to fetch attachment");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -2150,8 +2152,12 @@ const emailDetailKey = (id) => ["email", id];
 
 // Shared fetch helper for the email list
 async function fetchEmailList(nav, page) {
-  const url = nav === "Starred" ? "/emails/starred" : `/emails?page=${page}`;
-  const res = await fetch(url);
+  let url;
+  if (nav === "Starred") url = "/emails/starred";
+  else if (nav === "Sent") url = `/emails/sent?page=${page}`;
+  else url = `/emails?page=${page}`;
+
+  const res  = await fetch(url);
   const data = await res.json();
   if (Array.isArray(data)) return { emails: data, total: data.length };
   return { emails: data.emails || [], total: data.total || 0 };
@@ -2195,12 +2201,15 @@ export default function GmailUI() {
     );
 
   // Prefetch email detail on hover so it's ready before you click
-  const prefetchDetail = (id) =>
+  const prefetchDetail = (id) => {
+    const folder = activeNav === "Sent" ? "sent" : "inbox";
+    const param  = folder === "sent" ? "?folder=sent" : "";
     queryClient.prefetchQuery({
-      queryKey: emailDetailKey(id),
-      queryFn: () => fetch(`/emails/${id}`).then((r) => r.json()),
+      queryKey: ["email", id, folder],
+      queryFn: () => fetch(`/emails/${id}${param}`).then((r) => r.json()),
       staleTime: Infinity,
     });
+  };
 
   const selectedEmail = emails.find((e) => e.id === selectedId);
 
@@ -2700,6 +2709,7 @@ export default function GmailUI() {
                   }}
                   emailPosition={emailPosition}
                   totalEmails={totalEmails}
+                  folder={activeNav === "Sent" ? "sent" : "inbox"}
                   onPrev={
                     emailIdx > 0
                       ? () => setSelectedId(paginatedEmails[emailIdx - 1].id)
@@ -3325,7 +3335,7 @@ export default function GmailUI() {
                               whiteSpace: "nowrap",
                             }}
                           >
-                            {email.sender}
+                            {activeNav === "Sent" ? `To: ${email.sender}` : email.sender}
                           </span>
                           <div
                             style={{
