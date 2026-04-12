@@ -23,6 +23,8 @@ import {
   MdMoreVert,
   MdRefresh,
   MdKeyboardArrowDown,
+  MdKeyboardArrowLeft,
+  MdKeyboardArrowRight,
   MdDownload,
   MdInsertDriveFile,
   MdImage,
@@ -245,7 +247,7 @@ function ComposeModal({ onClose }) {
   );
 }
 
-function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread }) {
+function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, onNext, emailPosition, totalEmails }) {
   const [detail, setDetail] = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(true);
   const [showDetails, setShowDetails] = useState(false);
@@ -254,6 +256,16 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [mailboxes, setMailboxes] = useState([]);
   const [acting, setActing] = useState(false);
+
+  useEffect(() => {
+    const handleKey = (e) => {
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+      if (e.key === "ArrowLeft"  && onPrev) onPrev();
+      if (e.key === "ArrowRight" && onNext) onNext();
+    };
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [onPrev, onNext]);
 
   const act = async (endpoint, method = "POST") => {
     setActing(true);
@@ -436,6 +448,46 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread }) {
               </div>
             </>
           )}
+        </div>
+
+        {/* Spacer + prev/next navigation */}
+        <div style={{ flex: 1 }} />
+        <div style={{ display: "flex", alignItems: "center", gap: 2, color: "#5f6368", fontSize: 13 }}>
+          <span style={{ marginRight: 4, whiteSpace: "nowrap" }}>
+            {emailPosition} of {totalEmails}
+          </span>
+          <button
+            onClick={onPrev}
+            disabled={!onPrev}
+            title="Newer"
+            style={{
+              background: "none", border: "none",
+              cursor: onPrev ? "pointer" : "default",
+              borderRadius: "50%", width: 36, height: 36,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: onPrev ? "#5f6368" : "#bdbdbd",
+            }}
+            onMouseEnter={(e) => { if (onPrev) e.currentTarget.style.background = "rgba(0,0,0,0.08)"; }}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdKeyboardArrowLeft size={20} />
+          </button>
+          <button
+            onClick={onNext}
+            disabled={!onNext}
+            title="Older"
+            style={{
+              background: "none", border: "none",
+              cursor: onNext ? "pointer" : "default",
+              borderRadius: "50%", width: 36, height: 36,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: onNext ? "#5f6368" : "#bdbdbd",
+            }}
+            onMouseEnter={(e) => { if (onNext) e.currentTarget.style.background = "rgba(0,0,0,0.08)"; }}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdKeyboardArrowRight size={20} />
+          </button>
         </div>
 
         {/* Disable overlay while acting */}
@@ -625,20 +677,32 @@ export default function GmailUI() {
   const [showSelectDropdown, setShowSelectDropdown] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEmails, setTotalEmails] = useState(0);
+  const PAGE_SIZE = 50;
 
   const [activeNav, setActiveNav] = useState("Inbox");
-
-  const urlForNav = (nav) =>
-    nav === "Starred" ? "/emails/starred" : "/emails";
 
   useEffect(() => {
     setLoading(true);
     setEmails([]);
-    fetch(urlForNav(activeNav))
+    const url = activeNav === "Starred"
+      ? "/emails/starred"
+      : `/emails?page=${currentPage}`;
+    fetch(url)
       .then((res) => res.json())
-      .then((data) => { setEmails(data); setLoading(false); })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setEmails(data);
+          setTotalEmails(data.length);
+        } else {
+          setEmails(data.emails || []);
+          setTotalEmails(data.total || 0);
+        }
+        setLoading(false);
+      })
       .catch((err) => { console.error("Failed to fetch emails:", err); setLoading(false); });
-  }, [activeNav]);
+  }, [activeNav, currentPage]);
   const [showCompose, setShowCompose] = useState(false);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -687,6 +751,11 @@ export default function GmailUI() {
     return matchesSearch && matchesNav;
   });
 
+  const totalPages = Math.ceil(totalEmails / PAGE_SIZE) || 1;
+  const paginatedEmails = filteredEmails; // server already returns the current page's slice
+  const pageStart = totalEmails === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(currentPage * PAGE_SIZE, totalEmails);
+
   const allChecked =
     filteredEmails.length > 0 &&
     filteredEmails.every((e) => checkedIds.has(e.id));
@@ -726,9 +795,22 @@ export default function GmailUI() {
   const refreshEmails = () => {
     setRefreshing(true);
     setLoading(true);
-    fetch(urlForNav(activeNav))
+    const url = activeNav === "Starred"
+      ? "/emails/starred"
+      : `/emails?page=${currentPage}`;
+    fetch(url)
       .then((r) => r.json())
-      .then((data) => { setEmails(data); setLoading(false); setRefreshing(false); })
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setEmails(data);
+          setTotalEmails(data.length);
+        } else {
+          setEmails(data.emails || []);
+          setTotalEmails(data.total || 0);
+        }
+        setLoading(false);
+        setRefreshing(false);
+      })
       .catch(() => { setLoading(false); setRefreshing(false); });
   };
 
@@ -951,6 +1033,7 @@ export default function GmailUI() {
               key={item.label}
               onClick={() => {
                 setActiveNav(item.label);
+                setCurrentPage(1);
                 setSelectedId(null);
               }}
               title={!isExpanded ? item.label : undefined}
@@ -1100,7 +1183,10 @@ export default function GmailUI() {
         >
           {/* Content */}
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-            {selectedEmail ? (
+            {(() => {
+              const emailIdx = paginatedEmails.findIndex(e => e.id === selectedId);
+              const emailPosition = pageStart + emailIdx;
+              return selectedEmail ? (
               <EmailDetail
                 email={selectedEmail}
                 onClose={() => setSelectedId(null)}
@@ -1113,6 +1199,10 @@ export default function GmailUI() {
                   setEmails(prev => prev.map(em => em.id === selectedEmail.id ? { ...em, unread: true } : em));
                   setSelectedId(null);
                 }}
+                emailPosition={emailPosition}
+                totalEmails={totalEmails}
+                onPrev={emailIdx > 0 ? () => setSelectedId(paginatedEmails[emailIdx - 1].id) : null}
+                onNext={emailIdx < paginatedEmails.length - 1 ? () => setSelectedId(paginatedEmails[emailIdx + 1].id) : null}
               />
             ) : (
               <div
@@ -1376,6 +1466,58 @@ export default function GmailUI() {
                       )}
                     </div>
                   </div>
+
+                  {/* Spacer pushes pagination to the right */}
+                  <div style={{ flex: 1 }} />
+
+                  {/* Pagination — "1–50 of X" + prev/next arrows */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 2, color: "#5f6368", fontSize: 13 }}>
+                    <span style={{ marginRight: 6, whiteSpace: "nowrap" }}>
+                      {pageStart}–{pageEnd} of {totalEmails}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      title="Newer"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: currentPage === 1 ? "default" : "pointer",
+                        borderRadius: "50%",
+                        width: 36,
+                        height: 36,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: currentPage === 1 ? "#bdbdbd" : "#5f6368",
+                      }}
+                      onMouseEnter={(e) => { if (currentPage > 1) e.currentTarget.style.background = "#f1f3f4"; }}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                    >
+                      <MdKeyboardArrowLeft size={20} />
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                      title="Older"
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: currentPage === totalPages ? "default" : "pointer",
+                        borderRadius: "50%",
+                        width: 36,
+                        height: 36,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: currentPage === totalPages ? "#bdbdbd" : "#5f6368",
+                      }}
+                      onMouseEnter={(e) => { if (currentPage < totalPages) e.currentTarget.style.background = "#f1f3f4"; }}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                    >
+                      <MdKeyboardArrowRight size={20} />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Email List */}
@@ -1414,7 +1556,7 @@ export default function GmailUI() {
                         : "No emails found"}
                     </div>
                   )}
-                  {filteredEmails.map((email) => {
+                  {paginatedEmails.map((email) => {
                     const isChecked = checkedIds.has(email.id);
                     const isHovered = hoveredId === email.id;
                     const showCheckbox = isChecked || isHovered;
@@ -1721,7 +1863,8 @@ export default function GmailUI() {
                   })}
                 </div>
               </div>
-            )}
+            );
+          })()}
           </div>
         </div>
       </div>
