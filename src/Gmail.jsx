@@ -265,23 +265,24 @@ function ComposeModal({ onClose }) {
         {/* Header */}
         <div
           style={{
-            background: "#404040",
-            color: "#fff",
+            background: "#f2f6fc",
+            color: "#202124",
             padding: "10px 16px",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             fontSize: 14,
-            fontWeight: 500,
+            fontWeight: 600,
             cursor: minimized ? "pointer" : "default",
             flexShrink: 0,
+            borderBottom: minimized ? "none" : "1px solid #e0e0e0",
           }}
           onClick={minimized ? handleMinimize : undefined}
         >
           <span style={{ userSelect: "none" }}>
             {subject.trim() ? subject : "New Message"}
           </span>
-          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
             {/* Minimize */}
             <button
               title={minimized ? "Restore" : "Minimize"}
@@ -290,14 +291,13 @@ function ComposeModal({ onClose }) {
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: "#fff",
+                color: "#444746",
                 display: "flex",
                 alignItems: "center",
                 padding: "4px 6px",
                 borderRadius: 4,
-                opacity: 0.85,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               <MdRemove size={18} />
@@ -310,14 +310,13 @@ function ComposeModal({ onClose }) {
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: "#fff",
+                color: "#444746",
                 display: "flex",
                 alignItems: "center",
                 padding: "4px 6px",
                 borderRadius: 4,
-                opacity: 0.85,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               {fullscreen ? <MdCloseFullscreen size={16} /> : <MdOpenInFull size={16} />}
@@ -330,14 +329,13 @@ function ComposeModal({ onClose }) {
                 background: "none",
                 border: "none",
                 cursor: "pointer",
-                color: "#fff",
+                color: "#444746",
                 display: "flex",
                 alignItems: "center",
                 padding: "4px 6px",
                 borderRadius: 4,
-                opacity: 0.85,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               <MdClose size={18} />
