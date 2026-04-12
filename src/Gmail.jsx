@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MdInbox,
@@ -165,22 +165,180 @@ function SenderAvatar({
   );
 }
 
+function useContactSuggestions(query, preloaded) {
+  return useMemo(() => {
+    if (!query || query.length < 1 || preloaded.length === 0) return [];
+    const lower = query.toLowerCase();
+    return preloaded
+      .filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower))
+      .slice(0, 10);
+  }, [query, preloaded]);
+}
+
+function ToField({ recipients, onChange, preloaded }) {
+  const [inputVal, setInputVal] = useState("");
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const [open, setOpen] = useState(false);
+  const suggestions = useContactSuggestions(inputVal, preloaded);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    setOpen(suggestions.length > 0 && inputVal.length > 0);
+    setActiveIdx(-1);
+  }, [suggestions, inputVal]);
+
+  const addRecipient = (contact) => {
+    if (!recipients.find(r => r.email === contact.email)) {
+      onChange([...recipients, contact]);
+    }
+    setInputVal("");
+    setOpen(false);
+    inputRef.current?.focus();
+  };
+
+  const commitInput = () => {
+    const val = inputVal.trim();
+    if (!val) return;
+    // treat bare input as email
+    const contact = { name: val.includes("@") ? val.split("@")[0] : val, email: val };
+    addRecipient(contact);
+  };
+
+  const removeRecipient = (email) => onChange(recipients.filter(r => r.email !== email));
+
+  const handleKeyDown = (e) => {
+    if (open && suggestions.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, suggestions.length - 1)); return; }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); return; }
+      if ((e.key === "Enter" || e.key === "Tab") && activeIdx >= 0) {
+        e.preventDefault();
+        addRecipient(suggestions[activeIdx]);
+        return;
+      }
+    }
+    if (e.key === "Enter" || e.key === "Tab" || e.key === ",") {
+      e.preventDefault();
+      if (open && activeIdx >= 0) { addRecipient(suggestions[activeIdx]); return; }
+      commitInput();
+    }
+    if (e.key === "Backspace" && inputVal === "" && recipients.length > 0) {
+      onChange(recipients.slice(0, -1));
+    }
+    if (e.key === "Escape") { setOpen(false); }
+  };
+
+  // color from first char
+  const chipColor = (email) => {
+    const colors = ["#1a73e8","#34a853","#fbbc04","#ea4335","#9334e6","#00897b","#e91e63"];
+    return colors[email.charCodeAt(0) % colors.length];
+  };
+
+  return (
+    <div style={{ position: "relative", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, flex: 1 }}>
+      {recipients.map(r => (
+        <span key={r.email} style={{
+          display: "inline-flex", alignItems: "center", gap: 4,
+          background: "#e8f0fe", borderRadius: 16, padding: "2px 4px 2px 2px",
+          fontSize: 13, color: "#1967d2", maxWidth: 220,
+        }}>
+          <span style={{
+            width: 20, height: 20, borderRadius: "50%", background: chipColor(r.email),
+            color: "#fff", fontSize: 10, fontWeight: 700,
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            {r.name.charAt(0).toUpperCase()}
+          </span>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
+          <button onClick={() => removeRecipient(r.email)} style={{
+            background: "none", border: "none", cursor: "pointer", padding: "0 2px",
+            color: "#1967d2", display: "flex", alignItems: "center", lineHeight: 1,
+          }}>
+            <MdClose size={13} />
+          </button>
+        </span>
+      ))}
+      <input
+        ref={inputRef}
+        value={inputVal}
+        onChange={(e) => setInputVal(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => { setTimeout(() => setOpen(false), 150); if (inputVal.trim()) commitInput(); }}
+        onFocus={() => { if (suggestions.length > 0 && inputVal) setOpen(true); }}
+        style={{ border: "none", outline: "none", fontSize: 13, color: "#202124", background: "transparent", fontFamily: "inherit", minWidth: 120, flex: 1 }}
+        placeholder={recipients.length === 0 ? "Recipients" : ""}
+      />
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
+          background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+          zIndex: 400, overflow: "hidden", border: "1px solid #e0e0e0",
+        }}>
+          {suggestions.map((s, i) => (
+            <div
+              key={s.email}
+              onMouseDown={() => addRecipient(s)}
+              onMouseEnter={() => setActiveIdx(i)}
+              style={{
+                display: "flex", alignItems: "center", gap: 12,
+                padding: "8px 16px", cursor: "pointer",
+                background: i === activeIdx ? "#f1f3f4" : "#fff",
+              }}
+            >
+              <div style={{
+                width: 32, height: 32, borderRadius: "50%", background: chipColor(s.email),
+                color: "#fff", fontSize: 13, fontWeight: 600,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+              }}>
+                {s.name.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, color: "#202124", fontWeight: 500 }}>{s.name}</div>
+                <div style={{ fontSize: 12, color: "#5f6368" }}>{s.email}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ComposeModal({ onClose }) {
-  const [to, setTo] = useState("");
+  const [recipients, setRecipients] = useState([]);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [preloadedContacts, setPreloadedContacts] = useState([]);
+
+  // Pre-fetch top contacts as soon as the modal opens
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/contacts")
+      .then(r => r.json())
+      .then(data => { if (!cancelled) setPreloadedContacts(data); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const handleSend = async () => {
     setSending(true);
     try {
+      const to = recipients.map(r => r.email).join(", ");
       await fetch("/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to, subject, text: body }),
       });
+      // Persist recipients in SQLite for instant autocomplete next time
+      if (recipients.length > 0) {
+        fetch("/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(recipients),
+        }).catch(() => {});
+      }
       onClose();
     } catch (err) {
       console.error("Failed to send email:", err);
@@ -346,13 +504,9 @@ function ComposeModal({ onClose }) {
         {/* Body — hidden when minimized */}
         {!minimized && (
           <>
-            <div style={fieldStyle}>
-              <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>To</span>
-              <input
-                style={inputStyle}
-                value={to}
-                onChange={(e) => setTo(e.target.value)}
-              />
+            <div style={{ ...fieldStyle, alignItems: "flex-start", flexWrap: "wrap", minHeight: 38 }}>
+              <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28, paddingTop: 4 }}>To</span>
+              <ToField recipients={recipients} onChange={setRecipients} preloaded={preloadedContacts} />
             </div>
             <div style={fieldStyle}>
               <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>
