@@ -434,7 +434,7 @@ function ToField({ recipients, onChange, preloaded }) {
   );
 }
 
-function RichTextEditor({ onChange, fullscreen }) {
+function RichTextEditor({ onChange, fullscreen, showToolbar }) {
   const editorRef = useRef(null);
   const colorInputRef = useRef(null);
   const [formats, setFormats] = useState({});
@@ -555,7 +555,7 @@ function RichTextEditor({ onChange, fullscreen }) {
       />
 
       {/* Toolbar — only in fullscreen, pinned above the action bar */}
-      {fullscreen && (
+      {showToolbar && (
         <div
           style={{
             display: "flex",
@@ -862,6 +862,9 @@ function ComposeModal({ onClose, minimized, onMinimize }) {
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const [showFormatting, setShowFormatting] = useState(false);
+  const [attachments, setAttachments] = useState([]);
+  const fileInputRef = useRef(null);
   const [preloadedContacts, setPreloadedContacts] = useState([]);
 
   // Pre-fetch top contacts as soon as the modal opens
@@ -882,16 +885,15 @@ function ComposeModal({ onClose, minimized, onMinimize }) {
     setSending(true);
     try {
       const to = recipients.map((r) => r.email).join(", ");
-      await fetch("/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          to,
-          subject,
-          html: body,
-          text: body.replace(/<[^>]*>/g, ""),
-        }),
-      });
+      const fd = new FormData();
+      fd.append("to", to);
+      fd.append("subject", subject);
+      fd.append("html", body);
+      fd.append("text", body.replace(/<[^>]*>/g, ""));
+      attachments.forEach(f => fd.append("attachments", f));
+
+      await fetch("/send-email", { method: "POST", body: fd });
+
       // Persist recipients in SQLite for instant autocomplete next time
       if (recipients.length > 0) {
         fetch("/contacts", {
@@ -914,8 +916,10 @@ function ComposeModal({ onClose, minimized, onMinimize }) {
   };
 
   const handleFullscreen = () => {
-    setFullscreen((prev) => !prev);
-    if (minimized) onMinimize(); // restore if minimized before going fullscreen
+    const next = !fullscreen;
+    setFullscreen(next);
+    if (next) setShowFormatting(true);   // always show toolbar in fullscreen
+    if (minimized) onMinimize();
   };
 
   const fieldStyle = {
@@ -1119,7 +1123,59 @@ function ComposeModal({ onClose, minimized, onMinimize }) {
               />
             </div>
 
-            <RichTextEditor onChange={setBody} fullscreen={fullscreen} />
+            <RichTextEditor onChange={setBody} fullscreen={fullscreen} showToolbar={showFormatting} />
+
+            {/* Attachment chips */}
+            {attachments.length > 0 && (
+              <div style={{
+                display: "flex", flexWrap: "wrap", gap: 8,
+                padding: "8px 16px 4px",
+                borderTop: "1px solid #e0e0e0",
+              }}>
+                {attachments.map((file, i) => (
+                  <div key={i} style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    background: "#f1f3f4", borderRadius: 8,
+                    padding: "6px 10px", maxWidth: 220,
+                  }}>
+                    <MdAttachFile size={16} style={{ color: "#5f6368", flexShrink: 0 }} />
+                    <span style={{
+                      fontSize: 12, color: "#202124",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {file.name}
+                    </span>
+                    <span style={{ fontSize: 11, color: "#5f6368", flexShrink: 0 }}>
+                      {file.size < 1024 * 1024
+                        ? `${(file.size / 1024).toFixed(0)} KB`
+                        : `${(file.size / 1024 / 1024).toFixed(1)} MB`}
+                    </span>
+                    <button
+                      onClick={() => setAttachments(a => a.filter((_, j) => j !== i))}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#5f6368", display: "flex", alignItems: "center", flexShrink: 0 }}
+                    >
+                      <MdClose size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: "none" }}
+              onChange={e => {
+                const newFiles = Array.from(e.target.files || []);
+                setAttachments(prev => {
+                  const existing = new Set(prev.map(f => f.name + f.size));
+                  return [...prev, ...newFiles.filter(f => !existing.has(f.name + f.size))];
+                });
+                e.target.value = "";
+              }}
+            />
 
             <div
               style={{
@@ -1148,23 +1204,66 @@ function ComposeModal({ onClose, minimized, onMinimize }) {
               >
                 {sending ? "Sending..." : "Send"}
               </button>
-              {[MdAttachFile, MdMoreVert].map((Icon) => (
-                <button
-                  key={Icon.name}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    padding: "6px 8px",
-                    borderRadius: "50%",
-                    color: "#5f6368",
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                >
-                  <Icon size={18} />
-                </button>
-              ))}
+
+              {/* Aa — Formatting Options (always visible, next to Send) */}
+              <button
+                title={showFormatting ? "Hide formatting" : "Formatting options"}
+                onClick={() => setShowFormatting(v => !v)}
+                style={{
+                  background: showFormatting ? "#e8f0fe" : "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "5px 8px",
+                  borderRadius: 4,
+                  color: showFormatting ? "#1967d2" : "#5f6368",
+                  display: "flex",
+                  alignItems: "center",
+                  lineHeight: 1,
+                  gap: 1,
+                }}
+                onMouseEnter={e => { if (!showFormatting) e.currentTarget.style.background = "#f1f3f4"; }}
+                onMouseLeave={e => { if (!showFormatting) e.currentTarget.style.background = "none"; }}
+              >
+                <span style={{ fontSize: 15, fontWeight: 700 }}>A</span>
+                <span style={{ fontSize: 11, fontWeight: 600 }}>a</span>
+              </button>
+
+              <button
+                title="Attach files"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  padding: "6px 8px", borderRadius: "50%",
+                  color: attachments.length > 0 ? "#1a73e8" : "#5f6368",
+                  display: "flex", alignItems: "center", position: "relative",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                <MdAttachFile size={18} />
+                {attachments.length > 0 && (
+                  <span style={{
+                    position: "absolute", top: 2, right: 2,
+                    background: "#1a73e8", color: "#fff",
+                    borderRadius: "50%", width: 14, height: 14,
+                    fontSize: 9, fontWeight: 700,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {attachments.length}
+                  </span>
+                )}
+              </button>
+              <button
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  padding: "6px 8px", borderRadius: "50%",
+                  color: "#5f6368", display: "flex", alignItems: "center",
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                <MdMoreVert size={18} />
+              </button>
               <div style={{ flex: 1 }} />
               <button
                 style={{
