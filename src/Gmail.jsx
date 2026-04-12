@@ -39,6 +39,23 @@ import {
   MdRemove,
   MdOpenInFull,
   MdCloseFullscreen,
+  MdFormatBold,
+  MdFormatItalic,
+  MdFormatUnderlined,
+  MdFormatStrikethrough,
+  MdFormatListBulleted,
+  MdFormatListNumbered,
+  MdFormatIndentIncrease,
+  MdFormatIndentDecrease,
+  MdFormatAlignLeft,
+  MdFormatAlignCenter,
+  MdFormatAlignRight,
+  MdFormatColorText,
+  MdFormatClear,
+  MdInsertLink,
+  MdFormatQuote,
+  MdUndo,
+  MdRedo,
 } from "react-icons/md";
 
 const LABEL_STYLES = {
@@ -170,7 +187,11 @@ function useContactSuggestions(query, preloaded) {
     if (!query || query.length < 1 || preloaded.length === 0) return [];
     const lower = query.toLowerCase();
     return preloaded
-      .filter(c => c.name.toLowerCase().includes(lower) || c.email.toLowerCase().includes(lower))
+      .filter(
+        (c) =>
+          c.name.toLowerCase().includes(lower) ||
+          c.email.toLowerCase().includes(lower),
+      )
       .slice(0, 10);
   }, [query, preloaded]);
 }
@@ -188,7 +209,7 @@ function ToField({ recipients, onChange, preloaded }) {
   }, [suggestions, inputVal]);
 
   const addRecipient = (contact) => {
-    if (!recipients.find(r => r.email === contact.email)) {
+    if (!recipients.find((r) => r.email === contact.email)) {
       onChange([...recipients, contact]);
     }
     setInputVal("");
@@ -200,16 +221,28 @@ function ToField({ recipients, onChange, preloaded }) {
     const val = inputVal.trim();
     if (!val) return;
     // treat bare input as email
-    const contact = { name: val.includes("@") ? val.split("@")[0] : val, email: val };
+    const contact = {
+      name: val.includes("@") ? val.split("@")[0] : val,
+      email: val,
+    };
     addRecipient(contact);
   };
 
-  const removeRecipient = (email) => onChange(recipients.filter(r => r.email !== email));
+  const removeRecipient = (email) =>
+    onChange(recipients.filter((r) => r.email !== email));
 
   const handleKeyDown = (e) => {
     if (open && suggestions.length > 0) {
-      if (e.key === "ArrowDown") { e.preventDefault(); setActiveIdx(i => Math.min(i + 1, suggestions.length - 1)); return; }
-      if (e.key === "ArrowUp")   { e.preventDefault(); setActiveIdx(i => Math.max(i - 1, 0)); return; }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setActiveIdx((i) => Math.min(i + 1, suggestions.length - 1));
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setActiveIdx((i) => Math.max(i - 1, 0));
+        return;
+      }
       if ((e.key === "Enter" || e.key === "Tab") && activeIdx >= 0) {
         e.preventDefault();
         addRecipient(suggestions[activeIdx]);
@@ -218,41 +251,99 @@ function ToField({ recipients, onChange, preloaded }) {
     }
     if (e.key === "Enter" || e.key === "Tab" || e.key === ",") {
       e.preventDefault();
-      if (open && activeIdx >= 0) { addRecipient(suggestions[activeIdx]); return; }
+      if (open && activeIdx >= 0) {
+        addRecipient(suggestions[activeIdx]);
+        return;
+      }
       commitInput();
     }
     if (e.key === "Backspace" && inputVal === "" && recipients.length > 0) {
       onChange(recipients.slice(0, -1));
     }
-    if (e.key === "Escape") { setOpen(false); }
+    if (e.key === "Escape") {
+      setOpen(false);
+    }
   };
 
   // color from first char
   const chipColor = (email) => {
-    const colors = ["#1a73e8","#34a853","#fbbc04","#ea4335","#9334e6","#00897b","#e91e63"];
+    const colors = [
+      "#1a73e8",
+      "#34a853",
+      "#fbbc04",
+      "#ea4335",
+      "#9334e6",
+      "#00897b",
+      "#e91e63",
+    ];
     return colors[email.charCodeAt(0) % colors.length];
   };
 
   return (
-    <div style={{ position: "relative", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, flex: 1 }}>
-      {recipients.map(r => (
-        <span key={r.email} style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          background: "#e8f0fe", borderRadius: 16, padding: "2px 4px 2px 2px",
-          fontSize: 13, color: "#1967d2", maxWidth: 220,
-        }}>
-          <span style={{
-            width: 20, height: 20, borderRadius: "50%", background: chipColor(r.email),
-            color: "#fff", fontSize: 10, fontWeight: 700,
-            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-          }}>
+    <div
+      style={{
+        position: "relative",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 4,
+        flex: 1,
+      }}
+    >
+      {recipients.map((r) => (
+        <span
+          key={r.email}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 4,
+            background: "#e8f0fe",
+            borderRadius: 16,
+            padding: "2px 4px 2px 2px",
+            fontSize: 13,
+            color: "#1967d2",
+            maxWidth: 220,
+          }}
+        >
+          <span
+            style={{
+              width: 20,
+              height: 20,
+              borderRadius: "50%",
+              background: chipColor(r.email),
+              color: "#fff",
+              fontSize: 10,
+              fontWeight: 700,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
             {r.name.charAt(0).toUpperCase()}
           </span>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</span>
-          <button onClick={() => removeRecipient(r.email)} style={{
-            background: "none", border: "none", cursor: "pointer", padding: "0 2px",
-            color: "#1967d2", display: "flex", alignItems: "center", lineHeight: 1,
-          }}>
+          <span
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {r.name}
+          </span>
+          <button
+            onClick={() => removeRecipient(r.email)}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "0 2px",
+              color: "#1967d2",
+              display: "flex",
+              alignItems: "center",
+              lineHeight: 1,
+            }}
+          >
             <MdClose size={13} />
           </button>
         </span>
@@ -262,37 +353,77 @@ function ToField({ recipients, onChange, preloaded }) {
         value={inputVal}
         onChange={(e) => setInputVal(e.target.value)}
         onKeyDown={handleKeyDown}
-        onBlur={() => { setTimeout(() => setOpen(false), 150); if (inputVal.trim()) commitInput(); }}
-        onFocus={() => { if (suggestions.length > 0 && inputVal) setOpen(true); }}
-        style={{ border: "none", outline: "none", fontSize: 13, color: "#202124", background: "transparent", fontFamily: "inherit", minWidth: 120, flex: 1 }}
+        onBlur={() => {
+          setTimeout(() => setOpen(false), 150);
+          if (inputVal.trim()) commitInput();
+        }}
+        onFocus={() => {
+          if (suggestions.length > 0 && inputVal) setOpen(true);
+        }}
+        style={{
+          border: "none",
+          outline: "none",
+          fontSize: 13,
+          color: "#202124",
+          background: "transparent",
+          fontFamily: "inherit",
+          minWidth: 120,
+          flex: 1,
+        }}
         placeholder={recipients.length === 0 ? "Recipients" : ""}
       />
       {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0,
-          background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
-          zIndex: 400, overflow: "hidden", border: "1px solid #e0e0e0",
-        }}>
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            left: 0,
+            right: 0,
+            background: "#fff",
+            borderRadius: 8,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+            zIndex: 400,
+            overflow: "hidden",
+            border: "1px solid #e0e0e0",
+          }}
+        >
           {suggestions.map((s, i) => (
             <div
               key={s.email}
               onMouseDown={() => addRecipient(s)}
               onMouseEnter={() => setActiveIdx(i)}
               style={{
-                display: "flex", alignItems: "center", gap: 12,
-                padding: "8px 16px", cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "8px 16px",
+                cursor: "pointer",
                 background: i === activeIdx ? "#f1f3f4" : "#fff",
               }}
             >
-              <div style={{
-                width: 32, height: 32, borderRadius: "50%", background: chipColor(s.email),
-                color: "#fff", fontSize: 13, fontWeight: 600,
-                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-              }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: chipColor(s.email),
+                  color: "#fff",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                }}
+              >
                 {s.name.charAt(0).toUpperCase()}
               </div>
               <div>
-                <div style={{ fontSize: 13, color: "#202124", fontWeight: 500 }}>{s.name}</div>
+                <div
+                  style={{ fontSize: 13, color: "#202124", fontWeight: 500 }}
+                >
+                  {s.name}
+                </div>
                 <div style={{ fontSize: 12, color: "#5f6368" }}>{s.email}</div>
               </div>
             </div>
@@ -303,12 +434,433 @@ function ToField({ recipients, onChange, preloaded }) {
   );
 }
 
-function ComposeModal({ onClose }) {
+function RichTextEditor({ onChange, fullscreen }) {
+  const editorRef = useRef(null);
+  const colorInputRef = useRef(null);
+  const [formats, setFormats] = useState({});
+  const [fontSize, setFontSize] = useState("3");
+  const [fontName, setFontName] = useState("Arial, sans-serif");
+
+  const updateFormats = () => {
+    setFormats({
+      bold: document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      underline: document.queryCommandState("underline"),
+      strikeThrough: document.queryCommandState("strikeThrough"),
+      insertOrderedList: document.queryCommandState("insertOrderedList"),
+      insertUnorderedList: document.queryCommandState("insertUnorderedList"),
+      justifyLeft: document.queryCommandState("justifyLeft"),
+      justifyCenter: document.queryCommandState("justifyCenter"),
+      justifyRight: document.queryCommandState("justifyRight"),
+    });
+  };
+
+  const exec = (cmd, val = null) => {
+    editorRef.current?.focus();
+    document.execCommand(cmd, false, val);
+    updateFormats();
+    onChange(editorRef.current?.innerHTML || "");
+  };
+
+  const handleInput = () => {
+    updateFormats();
+    onChange(editorRef.current?.innerHTML || "");
+  };
+
+  const btn = (cmd, icon, title, val = null) => (
+    <button
+      key={cmd + (val || "")}
+      title={title}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        exec(cmd, val);
+      }}
+      style={{
+        background: formats[cmd] ? "#e8f0fe" : "none",
+        border: "none",
+        cursor: "pointer",
+        padding: "3px 5px",
+        borderRadius: 4,
+        color: formats[cmd] ? "#1967d2" : "#444746",
+        display: "flex",
+        alignItems: "center",
+        flexShrink: 0,
+        transition: "background 0.1s",
+      }}
+      onMouseEnter={(e) => {
+        if (!formats[cmd]) e.currentTarget.style.background = "#f1f3f4";
+      }}
+      onMouseLeave={(e) => {
+        if (!formats[cmd]) e.currentTarget.style.background = "none";
+      }}
+    >
+      {icon}
+    </button>
+  );
+
+  const Divider = () => (
+    <div
+      style={{
+        width: 1,
+        height: 18,
+        background: "#e0e0e0",
+        margin: "0 3px",
+        flexShrink: 0,
+      }}
+    />
+  );
+
+  const selStyle = {
+    border: "none",
+    background: "none",
+    fontSize: 12,
+    color: "#444746",
+    cursor: "pointer",
+    outline: "none",
+    padding: "2px 4px",
+    borderRadius: 4,
+    fontFamily: "Google Sans, Roboto, sans-serif",
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: fullscreen ? 1 : "none",
+        minHeight: 0,
+      }}
+    >
+      {/* Editor area — always visible */}
+      <div
+        ref={editorRef}
+        contentEditable
+        suppressContentEditableWarning
+        onInput={handleInput}
+        onKeyUp={updateFormats}
+        onMouseUp={updateFormats}
+        data-placeholder="Write your message..."
+        style={{
+          flex: fullscreen ? 1 : "none",
+          minHeight: fullscreen ? "unset" : 190,
+          padding: "12px 16px",
+          outline: "none",
+          fontSize: 14,
+          color: "#202124",
+          background: "#fff",
+          lineHeight: 1.6,
+          overflowY: "auto",
+          fontFamily: "Arial, sans-serif",
+        }}
+      />
+
+      {/* Toolbar — only in fullscreen, pinned above the action bar */}
+      {fullscreen && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 1,
+            padding: "4px 8px",
+            borderTop: "1px solid #e0e0e0",
+            background: "#fff",
+            flexShrink: 0,
+          }}
+        >
+          {/* Undo / Redo */}
+          <button
+            title="Undo (Ctrl+Z)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              exec("undo");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdUndo size={18} />
+          </button>
+          <button
+            title="Redo (Ctrl+Y)"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              exec("redo");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdRedo size={18} />
+          </button>
+
+          <Divider />
+
+          {/* Font family */}
+          <select
+            style={{ ...selStyle, maxWidth: 108 }}
+            value={fontName}
+            onMouseDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              setFontName(e.target.value);
+              exec("fontName", e.target.value);
+            }}
+          >
+            <option value="Arial, sans-serif">Sans Serif</option>
+            <option value="serif">Serif</option>
+            <option value="'Courier New', monospace">Fixed Width</option>
+            <option value="Georgia, serif">Georgia</option>
+            <option value="Tahoma, sans-serif">Tahoma</option>
+            <option value="Verdana, sans-serif">Verdana</option>
+          </select>
+
+          <Divider />
+
+          {/* Font size */}
+          <select
+            style={{ ...selStyle, maxWidth: 64 }}
+            value={fontSize}
+            onMouseDown={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              setFontSize(e.target.value);
+              exec("fontSize", e.target.value);
+            }}
+          >
+            <option value="1">Small</option>
+            <option value="3">Normal</option>
+            <option value="5">Large</option>
+            <option value="7">Huge</option>
+          </select>
+
+          <Divider />
+
+          {btn("bold", <MdFormatBold size={18} />, "Bold (Ctrl+B)")}
+          {btn("italic", <MdFormatItalic size={18} />, "Italic (Ctrl+I)")}
+          {btn(
+            "underline",
+            <MdFormatUnderlined size={18} />,
+            "Underline (Ctrl+U)",
+          )}
+          {btn(
+            "strikeThrough",
+            <MdFormatStrikethrough size={18} />,
+            "Strikethrough",
+          )}
+
+          <Divider />
+
+          {/* Text color */}
+          <button
+            title="Text color"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              colorInputRef.current?.click();
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdFormatColorText size={18} />
+          </button>
+          <input
+            ref={colorInputRef}
+            type="color"
+            defaultValue="#000000"
+            style={{ width: 0, height: 0, opacity: 0, position: "absolute" }}
+            onChange={(e) => exec("foreColor", e.target.value)}
+          />
+
+          <Divider />
+
+          {btn("justifyLeft", <MdFormatAlignLeft size={18} />, "Align left")}
+          {btn(
+            "justifyCenter",
+            <MdFormatAlignCenter size={18} />,
+            "Align center",
+          )}
+          {btn("justifyRight", <MdFormatAlignRight size={18} />, "Align right")}
+
+          <Divider />
+
+          {btn(
+            "insertOrderedList",
+            <MdFormatListNumbered size={18} />,
+            "Numbered list",
+          )}
+          {btn(
+            "insertUnorderedList",
+            <MdFormatListBulleted size={18} />,
+            "Bulleted list",
+          )}
+
+          <Divider />
+
+          <button
+            title="Decrease indent"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              exec("outdent");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdFormatIndentDecrease size={18} />
+          </button>
+          <button
+            title="Increase indent"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              exec("indent");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdFormatIndentIncrease size={18} />
+          </button>
+
+          <Divider />
+
+          <button
+            title="Quote"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              exec("formatBlock", "blockquote");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdFormatQuote size={18} />
+          </button>
+
+          <button
+            title="Insert link"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const url = window.prompt("Enter URL:");
+              if (url) exec("createLink", url);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdInsertLink size={18} />
+          </button>
+
+          <Divider />
+
+          <button
+            title="Remove formatting"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              exec("removeFormat");
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "3px 5px",
+              borderRadius: 4,
+              color: "#444746",
+              display: "flex",
+              alignItems: "center",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdFormatClear size={18} />
+          </button>
+        </div>
+      )}
+
+      <style>{`
+        [contenteditable]:empty:before {
+          content: attr(data-placeholder);
+          color: #9aa0a6;
+          pointer-events: none;
+        }
+        [contenteditable] blockquote {
+          margin: 4px 0 4px 16px;
+          padding-left: 12px;
+          border-left: 3px solid #dadce0;
+          color: #5f6368;
+        }
+        [contenteditable] a { color: #1a73e8; text-decoration: underline; }
+      `}</style>
+    </div>
+  );
+}
+
+function ComposeModal({ onClose, minimized, onMinimize }) {
   const [recipients, setRecipients] = useState([]);
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const [minimized, setMinimized] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [preloadedContacts, setPreloadedContacts] = useState([]);
 
@@ -316,20 +868,29 @@ function ComposeModal({ onClose }) {
   useEffect(() => {
     let cancelled = false;
     fetch("/contacts")
-      .then(r => r.json())
-      .then(data => { if (!cancelled) setPreloadedContacts(data); })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setPreloadedContacts(data);
+      })
       .catch(() => {});
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleSend = async () => {
     setSending(true);
     try {
-      const to = recipients.map(r => r.email).join(", ");
+      const to = recipients.map((r) => r.email).join(", ");
       await fetch("/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to, subject, text: body }),
+        body: JSON.stringify({
+          to,
+          subject,
+          html: body,
+          text: body.replace(/<[^>]*>/g, ""),
+        }),
       });
       // Persist recipients in SQLite for instant autocomplete next time
       if (recipients.length > 0) {
@@ -348,13 +909,13 @@ function ComposeModal({ onClose }) {
   };
 
   const handleMinimize = () => {
-    setMinimized((prev) => !prev);
+    onMinimize();
     if (fullscreen) setFullscreen(false);
   };
 
   const handleFullscreen = () => {
     setFullscreen((prev) => !prev);
-    if (minimized) setMinimized(false);
+    if (minimized) onMinimize(); // restore if minimized before going fullscreen
   };
 
   const fieldStyle = {
@@ -444,7 +1005,10 @@ function ComposeModal({ onClose }) {
             {/* Minimize */}
             <button
               title={minimized ? "Restore" : "Minimize"}
-              onClick={(e) => { e.stopPropagation(); handleMinimize(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMinimize();
+              }}
               style={{
                 background: "none",
                 border: "none",
@@ -455,7 +1019,9 @@ function ComposeModal({ onClose }) {
                 padding: "4px 6px",
                 borderRadius: 4,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+              }
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               <MdRemove size={18} />
@@ -463,7 +1029,10 @@ function ComposeModal({ onClose }) {
             {/* Fullscreen toggle */}
             <button
               title={fullscreen ? "Exit full screen" : "Full screen"}
-              onClick={(e) => { e.stopPropagation(); handleFullscreen(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleFullscreen();
+              }}
               style={{
                 background: "none",
                 border: "none",
@@ -474,15 +1043,24 @@ function ComposeModal({ onClose }) {
                 padding: "4px 6px",
                 borderRadius: 4,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+              }
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
-              {fullscreen ? <MdCloseFullscreen size={16} /> : <MdOpenInFull size={16} />}
+              {fullscreen ? (
+                <MdCloseFullscreen size={16} />
+              ) : (
+                <MdOpenInFull size={16} />
+              )}
             </button>
             {/* Close */}
             <button
               title="Close"
-              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
               style={{
                 background: "none",
                 border: "none",
@@ -493,7 +1071,9 @@ function ComposeModal({ onClose }) {
                 padding: "4px 6px",
                 borderRadius: 4,
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
+              onMouseEnter={(e) =>
+                (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+              }
               onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
             >
               <MdClose size={18} />
@@ -504,9 +1084,29 @@ function ComposeModal({ onClose }) {
         {/* Body — hidden when minimized */}
         {!minimized && (
           <>
-            <div style={{ ...fieldStyle, alignItems: "flex-start", flexWrap: "wrap", minHeight: 38 }}>
-              <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28, paddingTop: 4 }}>To</span>
-              <ToField recipients={recipients} onChange={setRecipients} preloaded={preloadedContacts} />
+            <div
+              style={{
+                ...fieldStyle,
+                alignItems: "flex-start",
+                flexWrap: "wrap",
+                minHeight: 38,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 13,
+                  color: "#5f6368",
+                  minWidth: 28,
+                  paddingTop: 4,
+                }}
+              >
+                To
+              </span>
+              <ToField
+                recipients={recipients}
+                onChange={setRecipients}
+                preloaded={preloadedContacts}
+              />
             </div>
             <div style={fieldStyle}>
               <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>
@@ -519,26 +1119,7 @@ function ComposeModal({ onClose }) {
               />
             </div>
 
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              style={{
-                flex: fullscreen ? 1 : "none",
-                width: "100%",
-                minHeight: fullscreen ? "unset" : 200,
-                padding: "12px 16px",
-                border: "none",
-                outline: "none",
-                resize: "none",
-                fontSize: 14,
-                color: "#202124",
-                background: "#fff",
-                fontFamily: "inherit",
-                lineHeight: 1.6,
-                boxSizing: "border-box",
-              }}
-              placeholder="Write your message..."
-            />
+            <RichTextEditor onChange={setBody} fullscreen={fullscreen} />
 
             <div
               style={{
@@ -1491,6 +2072,7 @@ export default function GmailUI() {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeNav, setActiveNav] = useState("Inbox");
   const [showCompose, setShowCompose] = useState(false);
+  const [composeMinimized, setComposeMinimized] = useState(false);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -1794,7 +2376,10 @@ export default function GmailUI() {
           {/* Compose */}
           <div style={{ padding: "8px 12px 12px" }}>
             <button
-              onClick={() => setShowCompose(true)}
+              onClick={() => {
+                setShowCompose(true);
+                setComposeMinimized(false);
+              }}
               title="Compose"
               style={{
                 width: isExpanded ? "100%" : 48,
@@ -2956,7 +3541,16 @@ export default function GmailUI() {
       </div>
 
       {/* Compose Modal */}
-      {showCompose && <ComposeModal onClose={() => setShowCompose(false)} />}
+      {showCompose && (
+        <ComposeModal
+          onClose={() => {
+            setShowCompose(false);
+            setComposeMinimized(false);
+          }}
+          minimized={composeMinimized}
+          onMinimize={() => setComposeMinimized((m) => !m)}
+        />
+      )}
 
       {/* Unsubscribe Confirmation Dialog */}
       {unsubscribeTarget && (
