@@ -36,6 +36,9 @@ import {
   MdReport,
   MdDriveFileMove,
   MdOutbox,
+  MdRemove,
+  MdOpenInFull,
+  MdCloseFullscreen,
 } from "react-icons/md";
 
 const LABEL_STYLES = {
@@ -167,6 +170,8 @@ function ComposeModal({ onClose }) {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
+  const [minimized, setMinimized] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
 
   const handleSend = async () => {
     setSending(true);
@@ -182,6 +187,16 @@ function ComposeModal({ onClose }) {
     } finally {
       setSending(false);
     }
+  };
+
+  const handleMinimize = () => {
+    setMinimized((prev) => !prev);
+    if (fullscreen) setFullscreen(false);
+  };
+
+  const handleFullscreen = () => {
+    setFullscreen((prev) => !prev);
+    if (minimized) setMinimized(false);
   };
 
   const fieldStyle = {
@@ -201,9 +216,24 @@ function ComposeModal({ onClose }) {
     fontFamily: "inherit",
   };
 
-  return (
-    <div
-      style={{
+  const containerStyle = fullscreen
+    ? {
+        position: "fixed",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: "min(860px, 90vw)",
+        height: "min(600px, 90vh)",
+        zIndex: 300,
+        borderRadius: 8,
+        overflow: "hidden",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.30)",
+        border: "0.5px solid #ccc",
+        background: "#fff",
+        display: "flex",
+        flexDirection: "column",
+      }
+    : {
         position: "fixed",
         bottom: 0,
         right: 24,
@@ -214,131 +244,213 @@ function ComposeModal({ onClose }) {
         boxShadow: "0 8px 40px rgba(0,0,0,0.22)",
         border: "0.5px solid #ccc",
         background: "#fff",
-      }}
-    >
-      <div
-        style={{
-          background: "#404040",
-          color: "#fff",
-          padding: "10px 16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          fontSize: 14,
-          fontWeight: 500,
-        }}
-      >
-        <span>New Message</span>
+        display: "flex",
+        flexDirection: "column",
+      };
+
+  return (
+    <>
+      {fullscreen && (
+        <div
+          onClick={handleFullscreen}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.35)",
+            zIndex: 299,
+          }}
+        />
+      )}
+      <div style={containerStyle}>
+        {/* Header */}
         <div
           style={{
-            display: "flex",
-            gap: 14,
-            cursor: "pointer",
-            alignItems: "center",
-          }}
-        >
-          <MdKeyboardArrowDown size={18} style={{ opacity: 0.8 }} />
-          <MdClose onClick={onClose} size={18} style={{ opacity: 0.8 }} />
-        </div>
-      </div>
-
-      <div style={fieldStyle}>
-        <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>To</span>
-        <input
-          style={inputStyle}
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-        />
-      </div>
-      <div style={fieldStyle}>
-        <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>
-          Subject
-        </span>
-        <input
-          style={inputStyle}
-          value={subject}
-          onChange={(e) => setSubject(e.target.value)}
-        />
-      </div>
-
-      <textarea
-        value={body}
-        onChange={(e) => setBody(e.target.value)}
-        style={{
-          width: "100%",
-          minHeight: 200,
-          padding: "12px 16px",
-          border: "none",
-          outline: "none",
-          resize: "none",
-          fontSize: 14,
-          color: "#202124",
-          background: "#fff",
-          fontFamily: "inherit",
-          lineHeight: 1.6,
-        }}
-        placeholder="Write your message..."
-      />
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "8px 16px",
-          borderTop: "0.5px solid #e0e0e0",
-        }}
-      >
-        <button
-          onClick={handleSend}
-          disabled={sending}
-          style={{
-            background: "#1a73e8",
+            background: "#404040",
             color: "#fff",
-            border: "none",
-            borderRadius: 20,
-            padding: "8px 24px",
+            padding: "10px 16px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
             fontSize: 14,
             fontWeight: 500,
-            cursor: sending ? "default" : "pointer",
-            opacity: sending ? 0.7 : 1,
+            cursor: minimized ? "pointer" : "default",
+            flexShrink: 0,
           }}
+          onClick={minimized ? handleMinimize : undefined}
         >
-          {sending ? "Sending..." : "Send"}
-        </button>
-        {[MdAttachFile, MdMoreVert].map((Icon) => (
-          <button
-            key={Icon.name}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "6px 8px",
-              borderRadius: "50%",
-              color: "#5f6368",
-              display: "flex",
-              alignItems: "center",
-            }}
-          >
-            <Icon size={18} />
-          </button>
-        ))}
-        <div style={{ flex: 1 }} />
-        <button
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            padding: "6px 8px",
-            color: "#5f6368",
-            display: "flex",
-            alignItems: "center",
-          }}
-        >
-          <MdDelete size={18} />
-        </button>
+          <span style={{ userSelect: "none" }}>
+            {subject.trim() ? subject : "New Message"}
+          </span>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            {/* Minimize */}
+            <button
+              title={minimized ? "Restore" : "Minimize"}
+              onClick={(e) => { e.stopPropagation(); handleMinimize(); }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                padding: "4px 6px",
+                borderRadius: 4,
+                opacity: 0.85,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            >
+              <MdRemove size={18} />
+            </button>
+            {/* Fullscreen toggle */}
+            <button
+              title={fullscreen ? "Exit full screen" : "Full screen"}
+              onClick={(e) => { e.stopPropagation(); handleFullscreen(); }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                padding: "4px 6px",
+                borderRadius: 4,
+                opacity: 0.85,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            >
+              {fullscreen ? <MdCloseFullscreen size={16} /> : <MdOpenInFull size={16} />}
+            </button>
+            {/* Close */}
+            <button
+              title="Close"
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "#fff",
+                display: "flex",
+                alignItems: "center",
+                padding: "4px 6px",
+                borderRadius: 4,
+                opacity: 0.85,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            >
+              <MdClose size={18} />
+            </button>
+          </div>
+        </div>
+
+        {/* Body — hidden when minimized */}
+        {!minimized && (
+          <>
+            <div style={fieldStyle}>
+              <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>To</span>
+              <input
+                style={inputStyle}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </div>
+            <div style={fieldStyle}>
+              <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>
+                Subject
+              </span>
+              <input
+                style={inputStyle}
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+              />
+            </div>
+
+            <textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              style={{
+                flex: fullscreen ? 1 : "none",
+                width: "100%",
+                minHeight: fullscreen ? "unset" : 200,
+                padding: "12px 16px",
+                border: "none",
+                outline: "none",
+                resize: "none",
+                fontSize: 14,
+                color: "#202124",
+                background: "#fff",
+                fontFamily: "inherit",
+                lineHeight: 1.6,
+                boxSizing: "border-box",
+              }}
+              placeholder="Write your message..."
+            />
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "8px 16px",
+                borderTop: "0.5px solid #e0e0e0",
+                flexShrink: 0,
+              }}
+            >
+              <button
+                onClick={handleSend}
+                disabled={sending}
+                style={{
+                  background: "#1a73e8",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 20,
+                  padding: "8px 24px",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: sending ? "default" : "pointer",
+                  opacity: sending ? 0.7 : 1,
+                }}
+              >
+                {sending ? "Sending..." : "Send"}
+              </button>
+              {[MdAttachFile, MdMoreVert].map((Icon) => (
+                <button
+                  key={Icon.name}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "6px 8px",
+                    borderRadius: "50%",
+                    color: "#5f6368",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                >
+                  <Icon size={18} />
+                </button>
+              ))}
+              <div style={{ flex: 1 }} />
+              <button
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  padding: "6px 8px",
+                  color: "#5f6368",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+              >
+                <MdDelete size={18} />
+              </button>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </>
   );
 }
 
