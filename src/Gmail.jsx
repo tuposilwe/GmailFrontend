@@ -677,6 +677,8 @@ export default function GmailUI() {
   const [showSelectDropdown, setShowSelectDropdown] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [unsubscribeTarget, setUnsubscribeTarget] = useState(null); // { id, sender }
+  const [unsubscribing, setUnsubscribing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalEmails, setTotalEmails] = useState(0);
   const PAGE_SIZE = 50;
@@ -817,6 +819,20 @@ export default function GmailUI() {
   const markAllRead = () => {
     setEmails((prev) => prev.map((em) => ({ ...em, unread: false })));
     setShowMoreMenu(false);
+  };
+
+  const confirmUnsubscribe = async () => {
+    if (!unsubscribeTarget) return;
+    setUnsubscribing(true);
+    try {
+      await fetch(`/emails/${unsubscribeTarget.id}/unsubscribe`, { method: "POST" });
+      setEmails((prev) => prev.filter((em) => em.id !== unsubscribeTarget.id));
+    } catch (err) {
+      console.error("Unsubscribe failed:", err);
+    } finally {
+      setUnsubscribing(false);
+      setUnsubscribeTarget(null);
+    }
   };
 
   return (
@@ -1770,7 +1786,8 @@ export default function GmailUI() {
                             {/* Unsubscribe — text only */}
                             <button
                               title="Unsubscribe"
-                              onClick={(e) => e.stopPropagation()}
+                              onClick={(e) => { e.stopPropagation(); setUnsubscribeTarget({ id: email.id, sender: email.sender }); }}
+                              onMouseDown={(e) => e.stopPropagation()}
                               style={{
                                 background: "none",
                                 border: "0.5px solid #c5c5c5",
@@ -1798,15 +1815,28 @@ export default function GmailUI() {
 
                             {/* Icon action buttons */}
                             {[
-                              { Icon: MdArchive,         title: "Archive",        action: (e) => { e.stopPropagation(); setEmails(prev => prev.filter(em => em.id !== email.id)); } },
-                              { Icon: MdDelete,          title: "Delete",         action: (e) => { e.stopPropagation(); setEmails(prev => prev.filter(em => em.id !== email.id)); } },
-                              { Icon: MdMarkEmailUnread, title: "Mark as unread", action: (e) => { e.stopPropagation(); setEmails(prev => prev.map(em => em.id === email.id ? { ...em, unread: true } : em)); } },
+                              { Icon: MdArchive,         title: "Archive",        action: async (e) => {
+                                  e.stopPropagation();
+                                  setEmails(prev => prev.filter(em => em.id !== email.id));
+                                  await fetch(`/emails/${email.id}/archive`, { method: "POST" });
+                              }},
+                              { Icon: MdDelete,          title: "Delete",         action: async (e) => {
+                                  e.stopPropagation();
+                                  setEmails(prev => prev.filter(em => em.id !== email.id));
+                                  await fetch(`/emails/${email.id}/trash`, { method: "POST" });
+                              }},
+                              { Icon: MdMarkEmailUnread, title: "Mark as unread", action: async (e) => {
+                                  e.stopPropagation();
+                                  setEmails(prev => prev.map(em => em.id === email.id ? { ...em, unread: true } : em));
+                                  await fetch(`/emails/${email.id}/mark-unread`, { method: "POST" });
+                              }},
                               { Icon: MdAccessTime,      title: "Snooze",         action: (e) => { e.stopPropagation(); } },
                             ].map(({ Icon, title, action }) => (
                               <button
                                 key={title}
                                 title={title}
                                 onClick={action}
+                                onMouseDown={(e) => e.stopPropagation()}
                                 style={{
                                   background: "none",
                                   border: "none",
@@ -1820,7 +1850,7 @@ export default function GmailUI() {
                                   justifyContent: "center",
                                   flexShrink: 0,
                                 }}
-                                onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
+                                onMouseEnter={(e) => { e.stopPropagation(); e.currentTarget.style.background = "rgba(0,0,0,0.08)"; }}
                                 onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                               >
                                 <Icon size={16} />
@@ -1871,6 +1901,77 @@ export default function GmailUI() {
 
       {/* Compose Modal */}
       {showCompose && <ComposeModal onClose={() => setShowCompose(false)} />}
+
+      {/* Unsubscribe Confirmation Dialog */}
+      {unsubscribeTarget && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => !unsubscribing && setUnsubscribeTarget(null)}
+            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300 }}
+          />
+          <div
+            style={{
+              position: "fixed",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%,-50%)",
+              background: "#fff",
+              borderRadius: 12,
+              boxShadow: "0 8px 40px rgba(0,0,0,0.28)",
+              zIndex: 301,
+              width: 420,
+              padding: "28px 28px 20px",
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 500, color: "#202124", marginBottom: 12 }}>
+              Unsubscribe from {unsubscribeTarget.sender}?
+            </div>
+            <div style={{ fontSize: 14, color: "#5f6368", lineHeight: 1.6, marginBottom: 24 }}>
+              {unsubscribeTarget.sender} will be unsubscribed and the message will be moved to Spam.
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+              <button
+                onClick={() => setUnsubscribeTarget(null)}
+                disabled={unsubscribing}
+                style={{
+                  background: "none",
+                  border: "none",
+                  borderRadius: 20,
+                  padding: "8px 20px",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: unsubscribing ? "default" : "pointer",
+                  color: "#1a73e8",
+                  opacity: unsubscribing ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => { if (!unsubscribing) e.currentTarget.style.background = "#e8f0fe"; }}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmUnsubscribe}
+                disabled={unsubscribing}
+                style={{
+                  background: "#1a73e8",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 20,
+                  padding: "8px 20px",
+                  fontSize: 14,
+                  fontWeight: 500,
+                  cursor: unsubscribing ? "default" : "pointer",
+                  opacity: unsubscribing ? 0.7 : 1,
+                  minWidth: 110,
+                }}
+              >
+                {unsubscribing ? "Unsubscribing…" : "Unsubscribe"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
