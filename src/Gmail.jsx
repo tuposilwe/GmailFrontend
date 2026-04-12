@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MdInbox,
   MdStar,
@@ -75,23 +76,38 @@ function Avatar({ initials, color, size = 36 }) {
   );
 }
 
-function SenderAvatar({ senderEmail, initials, color, size = 40, verified = false }) {
-  const domain  = senderEmail ? senderEmail.split("@")[1] : "";
+function SenderAvatar({
+  senderEmail,
+  initials,
+  color,
+  size = 40,
+  verified = false,
+}) {
+  const domain = senderEmail ? senderEmail.split("@")[1] : "";
   const logoUrl = domain ? `/logo?domain=${domain}` : "";
 
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
   // Reset when we open a different email (key prop handles this, but guard anyway)
-  useEffect(() => { setLoaded(false); setFailed(false); }, [senderEmail]);
+  useEffect(() => {
+    setLoaded(false);
+    setFailed(false);
+  }, [senderEmail]);
 
   const badge = verified && (
     <div
       style={{
-        position: "absolute", bottom: -3, right: -3,
-        background: "#fff", borderRadius: "50%",
-        width: 18, height: 18,
-        display: "flex", alignItems: "center", justifyContent: "center",
+        position: "absolute",
+        bottom: -3,
+        right: -3,
+        background: "#fff",
+        borderRadius: "50%",
+        width: 18,
+        height: 18,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
       }}
     >
       <MdVerified size={16} color="#1a73e8" />
@@ -101,7 +117,14 @@ function SenderAvatar({ senderEmail, initials, color, size = 40, verified = fals
   // No domain or all sources failed → coloured initials + optional badge
   if (failed || !domain) {
     return (
-      <div style={{ position: "relative", flexShrink: 0, width: size, height: size }}>
+      <div
+        style={{
+          position: "relative",
+          flexShrink: 0,
+          width: size,
+          height: size,
+        }}
+      >
         <Avatar initials={initials} color={color} size={size} />
         {badge}
       </div>
@@ -109,7 +132,9 @@ function SenderAvatar({ senderEmail, initials, color, size = 40, verified = fals
   }
 
   return (
-    <div style={{ position: "relative", flexShrink: 0, width: size, height: size }}>
+    <div
+      style={{ position: "relative", flexShrink: 0, width: size, height: size }}
+    >
       {/* Show initials until the logo resolves */}
       {!loaded && <Avatar initials={initials} color={color} size={size} />}
 
@@ -120,9 +145,10 @@ function SenderAvatar({ senderEmail, initials, color, size = 40, verified = fals
         onError={() => setFailed(true)}
         alt=""
         style={{
-          position:  loaded ? "static" : "absolute",
-          opacity:   loaded ? 1 : 0,
-          width: size, height: size,
+          position: loaded ? "static" : "absolute",
+          opacity: loaded ? 1 : 0,
+          width: size,
+          height: size,
           borderRadius: "50%",
           objectFit: "cover",
           border: "0.5px solid #e0e0e0",
@@ -203,7 +229,14 @@ function ComposeModal({ onClose }) {
         }}
       >
         <span>New Message</span>
-        <div style={{ display: "flex", gap: 14, cursor: "pointer", alignItems: "center" }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 14,
+            cursor: "pointer",
+            alignItems: "center",
+          }}
+        >
           <MdKeyboardArrowDown size={18} style={{ opacity: 0.8 }} />
           <MdClose onClick={onClose} size={18} style={{ opacity: 0.8 }} />
         </div>
@@ -309,9 +342,23 @@ function ComposeModal({ onClose }) {
   );
 }
 
-function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, onNext, emailPosition, totalEmails }) {
-  const [detail, setDetail] = useState(null);
-  const [loadingDetail, setLoadingDetail] = useState(true);
+function EmailDetail({
+  email,
+  onClose,
+  onReply,
+  onDelete,
+  onMarkUnread,
+  onPrev,
+  onNext,
+  emailPosition,
+  totalEmails,
+}) {
+  const { data: detail, isLoading: loadingDetail } = useQuery({
+    queryKey: ["email", email.id],
+    queryFn: () => fetch(`/emails/${email.id}`).then((r) => r.json()),
+    staleTime: Infinity, // email bodies never change once fetched
+    gcTime: 30 * 60 * 1000,
+  });
   const [showDetails, setShowDetails] = useState(false);
   const [downloadingIdx, setDownloadingIdx] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
@@ -321,8 +368,9 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
 
   useEffect(() => {
     const handleKey = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      if (e.key === "ArrowLeft"  && onPrev) onPrev();
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+        return;
+      if (e.key === "ArrowLeft" && onPrev) onPrev();
       if (e.key === "ArrowRight" && onNext) onNext();
     };
     window.addEventListener("keydown", handleKey);
@@ -340,19 +388,44 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
     }
   };
 
-  const handleArchive = async () => { await act("archive"); onDelete(); };
-  const handleSpam    = async () => { await act("spam");    onDelete(); };
-  const handleDelete  = async () => { await act("trash");   onDelete(); };
-  const handleUnread  = async () => { await act("mark-unread"); onMarkUnread(); };
-  const handleRead    = async () => { await act("mark-read"); onClose(); setShowMoreMenu(false); };
-  const handleStar    = async () => { await act("star"); setShowMoreMenu(false); };
+  const handleArchive = async () => {
+    await act("archive");
+    onDelete();
+  };
+  const handleSpam = async () => {
+    await act("spam");
+    onDelete();
+  };
+  const handleDelete = async () => {
+    await act("trash");
+    onDelete();
+  };
+  const handleUnread = async () => {
+    await act("mark-unread");
+    onMarkUnread();
+  };
+  const handleRead = async () => {
+    await act("mark-read");
+    onClose();
+    setShowMoreMenu(false);
+  };
+  const handleStar = async () => {
+    await act("star");
+    setShowMoreMenu(false);
+  };
 
   const openMoveMenu = async () => {
     setShowMoveMenu(true);
     if (mailboxes.length === 0) {
       const res = await fetch("/mailboxes");
       const data = await res.json();
-      setMailboxes(data.filter(m => !m.specialUse?.includes("\\Sent") && !m.specialUse?.includes("\\Drafts")));
+      setMailboxes(
+        data.filter(
+          (m) =>
+            !m.specialUse?.includes("\\Sent") &&
+            !m.specialUse?.includes("\\Drafts"),
+        ),
+      );
     }
   };
 
@@ -394,22 +467,17 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
     }
   };
 
-  useEffect(() => {
-    setLoadingDetail(true);
-    setDetail(null);
-    fetch(`/emails/${email.id}`)
-      .then((r) => r.json())
-      .then((data) => { setDetail(data); setLoadingDetail(false); })
-      .catch(() => setLoadingDetail(false));
-  }, [email.id]);
-
   const senderName = detail?.senderName || email.senderName || email.sender;
   const senderEmail = detail?.senderEmail || email.senderEmail || "";
   const toEmail = detail?.toEmail || "";
   const fullDate = detail?.date
     ? new Date(detail.date).toLocaleString([], {
-        weekday: "short", month: "short", day: "numeric",
-        year: "numeric", hour: "2-digit", minute: "2-digit",
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       })
     : email.time;
 
@@ -418,8 +486,22 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
       key={title}
       title={title}
       onClick={onClick}
-      style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", width: 40, height: 40, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(0,0,0,0.08)")}
+      style={{
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        color: "#5f6368",
+        width: 40,
+        height: 40,
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+      onMouseEnter={(e) =>
+        (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+      }
       onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
     >
       {children}
@@ -427,52 +509,134 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
   );
 
   return (
-    <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", minWidth: 0 }}>
-
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        background: "#fff",
+        minWidth: 0,
+      }}
+    >
       {/* Toolbar */}
-      <div style={{ display: "flex", alignItems: "center", padding: "4px 8px", borderBottom: "0.5px solid #e0e0e0", gap: 0, flexShrink: 0, position: "relative" }}>
-
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "4px 8px",
+          borderBottom: "0.5px solid #e0e0e0",
+          gap: 0,
+          flexShrink: 0,
+          position: "relative",
+        }}
+      >
         {/* Back */}
         {iconBtn(onClose, "Back to Inbox", <MdArrowBack size={20} />)}
 
         <div style={{ width: 8 }} />
 
         {/* Primary actions */}
-        {iconBtn(handleArchive, "Archive",      <MdArchive size={20} />)}
-        {iconBtn(handleSpam,    "Report spam",  <MdReport size={20} />)}
-        {iconBtn(handleDelete,  "Delete",       <MdDelete size={20} />)}
+        {iconBtn(handleArchive, "Archive", <MdArchive size={20} />)}
+        {iconBtn(handleSpam, "Report spam", <MdReport size={20} />)}
+        {iconBtn(handleDelete, "Delete", <MdDelete size={20} />)}
 
-        <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
+        <div
+          style={{
+            width: 1,
+            height: 24,
+            background: "#e0e0e0",
+            margin: "0 4px",
+          }}
+        />
 
         {/* Secondary actions */}
-        {iconBtn(handleUnread, "Mark as unread", <MdMarkEmailUnread size={20} />)}
+        {iconBtn(
+          handleUnread,
+          "Mark as unread",
+          <MdMarkEmailUnread size={20} />,
+        )}
         {iconBtn(() => {}, "Snooze", <MdAccessTime size={20} />)}
 
-        <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
+        <div
+          style={{
+            width: 1,
+            height: 24,
+            background: "#e0e0e0",
+            margin: "0 4px",
+          }}
+        />
 
         {/* Move to */}
         <div style={{ position: "relative" }}>
           {iconBtn(openMoveMenu, "Move to", <MdDriveFileMove size={20} />)}
           {showMoveMenu && (
             <>
-              <div onClick={() => setShowMoveMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
-              <div style={{ position: "absolute", top: 44, left: 0, background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", zIndex: 100, minWidth: 220, maxHeight: 320, overflowY: "auto", padding: "4px 0", border: "0.5px solid #e0e0e0" }}>
-                <div style={{ padding: "8px 16px 4px", fontSize: 12, color: "#5f6368", fontWeight: 500 }}>Move to</div>
-                {mailboxes.length === 0
-                  ? <div style={{ padding: "10px 20px", fontSize: 14, color: "#5f6368" }}>Loading...</div>
-                  : mailboxes.map(mb => (
+              <div
+                onClick={() => setShowMoveMenu(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 99 }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: 44,
+                  left: 0,
+                  background: "#fff",
+                  borderRadius: 8,
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                  zIndex: 100,
+                  minWidth: 220,
+                  maxHeight: 320,
+                  overflowY: "auto",
+                  padding: "4px 0",
+                  border: "0.5px solid #e0e0e0",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "8px 16px 4px",
+                    fontSize: 12,
+                    color: "#5f6368",
+                    fontWeight: 500,
+                  }}
+                >
+                  Move to
+                </div>
+                {mailboxes.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: 14,
+                      color: "#5f6368",
+                    }}
+                  >
+                    Loading...
+                  </div>
+                ) : (
+                  mailboxes.map((mb) => (
                     <div
                       key={mb.path}
                       onClick={() => handleMove(mb.path)}
-                      style={{ padding: "10px 20px", fontSize: 14, color: "#202124", cursor: "pointer", display: "flex", alignItems: "center", gap: 10 }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      style={{
+                        padding: "10px 20px",
+                        fontSize: 14,
+                        color: "#202124",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = "#f1f3f4")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = "transparent")
+                      }
                     >
                       <MdOutbox size={16} color="#5f6368" />
                       {mb.name}
                     </div>
                   ))
-                }
+                )}
               </div>
             </>
           )}
@@ -480,29 +644,79 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
 
         {iconBtn(() => {}, "Labels", <MdLabel size={20} />)}
 
-        <div style={{ width: 1, height: 24, background: "#e0e0e0", margin: "0 4px" }} />
+        <div
+          style={{
+            width: 1,
+            height: 24,
+            background: "#e0e0e0",
+            margin: "0 4px",
+          }}
+        />
 
         {/* More */}
         <div style={{ position: "relative" }}>
-          {iconBtn(() => setShowMoreMenu(v => !v), "More", <MdMoreVert size={20} />)}
+          {iconBtn(
+            () => setShowMoreMenu((v) => !v),
+            "More",
+            <MdMoreVert size={20} />,
+          )}
           {showMoreMenu && (
             <>
-              <div onClick={() => setShowMoreMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 99 }} />
-              <div style={{ position: "absolute", top: 44, left: 0, background: "#fff", borderRadius: 8, boxShadow: "0 4px 20px rgba(0,0,0,0.18)", zIndex: 100, minWidth: 220, padding: "4px 0", border: "0.5px solid #e0e0e0" }}>
+              <div
+                onClick={() => setShowMoreMenu(false)}
+                style={{ position: "fixed", inset: 0, zIndex: 99 }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  top: 44,
+                  left: 0,
+                  background: "#fff",
+                  borderRadius: 8,
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                  zIndex: 100,
+                  minWidth: 220,
+                  padding: "4px 0",
+                  border: "0.5px solid #e0e0e0",
+                }}
+              >
                 {[
-                  { label: "Mark as read",              action: handleRead },
-                  { label: "Add star",                   action: handleStar },
-                  { label: "Print",                      action: () => { window.print(); setShowMoreMenu(false); } },
-                  { label: "Report phishing",            action: () => { handleSpam(); } },
-                  { label: "Filter messages like these", action: () => setShowMoreMenu(false) },
-                  { label: "Mute",                       action: () => setShowMoreMenu(false) },
+                  { label: "Mark as read", action: handleRead },
+                  { label: "Add star", action: handleStar },
+                  {
+                    label: "Print",
+                    action: () => {
+                      window.print();
+                      setShowMoreMenu(false);
+                    },
+                  },
+                  {
+                    label: "Report phishing",
+                    action: () => {
+                      handleSpam();
+                    },
+                  },
+                  {
+                    label: "Filter messages like these",
+                    action: () => setShowMoreMenu(false),
+                  },
+                  { label: "Mute", action: () => setShowMoreMenu(false) },
                 ].map(({ label, action }) => (
                   <div
                     key={label}
                     onClick={action}
-                    style={{ padding: "10px 20px", fontSize: 14, color: "#202124", cursor: "pointer" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    style={{
+                      padding: "10px 20px",
+                      fontSize: 14,
+                      color: "#202124",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = "#f1f3f4")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "transparent")
+                    }
                   >
                     {label}
                   </div>
@@ -514,7 +728,15 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
 
         {/* Spacer + prev/next navigation */}
         <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", alignItems: "center", gap: 2, color: "#5f6368", fontSize: 13 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            color: "#5f6368",
+            fontSize: 13,
+          }}
+        >
           <span style={{ marginRight: 4, whiteSpace: "nowrap" }}>
             {emailPosition} of {totalEmails}
           </span>
@@ -523,13 +745,20 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
             disabled={!onPrev}
             title="Newer"
             style={{
-              background: "none", border: "none",
+              background: "none",
+              border: "none",
               cursor: onPrev ? "pointer" : "default",
-              borderRadius: "50%", width: 36, height: 36,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: "50%",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               color: onPrev ? "#5f6368" : "#bdbdbd",
             }}
-            onMouseEnter={(e) => { if (onPrev) e.currentTarget.style.background = "rgba(0,0,0,0.08)"; }}
+            onMouseEnter={(e) => {
+              if (onPrev) e.currentTarget.style.background = "rgba(0,0,0,0.08)";
+            }}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
           >
             <MdKeyboardArrowLeft size={20} />
@@ -539,13 +768,20 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
             disabled={!onNext}
             title="Older"
             style={{
-              background: "none", border: "none",
+              background: "none",
+              border: "none",
               cursor: onNext ? "pointer" : "default",
-              borderRadius: "50%", width: 36, height: 36,
-              display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: "50%",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
               color: onNext ? "#5f6368" : "#bdbdbd",
             }}
-            onMouseEnter={(e) => { if (onNext) e.currentTarget.style.background = "rgba(0,0,0,0.08)"; }}
+            onMouseEnter={(e) => {
+              if (onNext) e.currentTarget.style.background = "rgba(0,0,0,0.08)";
+            }}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
           >
             <MdKeyboardArrowRight size={20} />
@@ -554,17 +790,50 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
 
         {/* Disable overlay while acting */}
         {acting && (
-          <div style={{ position: "absolute", inset: 0, zIndex: 50, cursor: "wait" }} />
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              zIndex: 50,
+              cursor: "wait",
+            }}
+          />
         )}
       </div>
 
       {/* Subject line */}
-      <div style={{ display: "flex", alignItems: "center", padding: "12px 24px 4px", gap: 12, flexShrink: 0 }}>
-        <span style={{ fontSize: 22, fontWeight: 500, color: "#202124", flex: 1, lineHeight: 1.3 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "12px 24px 4px",
+          gap: 12,
+          flexShrink: 0,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 22,
+            fontWeight: 500,
+            color: "#202124",
+            flex: 1,
+            lineHeight: 1.3,
+          }}
+        >
           {email.subject}
         </span>
         {email.label && email.label !== "inbox" && (
-          <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 4, fontWeight: 500, background: LABEL_STYLES[email.label]?.bg, color: LABEL_STYLES[email.label]?.color, flexShrink: 0 }}>
+          <span
+            style={{
+              fontSize: 11,
+              padding: "2px 8px",
+              borderRadius: 4,
+              fontWeight: 500,
+              background: LABEL_STYLES[email.label]?.bg,
+              color: LABEL_STYLES[email.label]?.color,
+              flexShrink: 0,
+            }}
+          >
             {email.label.charAt(0).toUpperCase() + email.label.slice(1)}
           </span>
         )}
@@ -572,12 +841,24 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px" }}>
-
         {/* Message card */}
-        <div style={{ border: "0.5px solid #e0e0e0", borderRadius: 8, padding: "20px 24px", marginBottom: 16 }}>
-
+        <div
+          style={{
+            border: "0.5px solid #e0e0e0",
+            borderRadius: 8,
+            padding: "20px 24px",
+            marginBottom: 16,
+          }}
+        >
           {/* Sender row */}
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 14,
+              marginBottom: 20,
+            }}
+          >
             <SenderAvatar
               key={senderEmail}
               senderEmail={senderEmail}
@@ -588,19 +869,48 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
             />
 
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 6, minWidth: 0, flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 600, fontSize: 14, color: "#202124" }}>{senderName}</span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 6,
+                    minWidth: 0,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <span
+                    style={{ fontWeight: 600, fontSize: 14, color: "#202124" }}
+                  >
+                    {senderName}
+                  </span>
                   {senderEmail && (
-                    <span style={{ fontSize: 12, color: "#5f6368" }}>&lt;{senderEmail}&gt;</span>
+                    <span style={{ fontSize: 12, color: "#5f6368" }}>
+                      &lt;{senderEmail}&gt;
+                    </span>
                   )}
                 </div>
-                <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>{fullDate}</span>
+                <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>
+                  {fullDate}
+                </span>
               </div>
 
               {/* to me / details toggle */}
               <div
-                style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, cursor: "pointer" }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 4,
+                  marginTop: 3,
+                  cursor: "pointer",
+                }}
                 onClick={() => setShowDetails((v) => !v)}
               >
                 <span style={{ fontSize: 12, color: "#5f6368" }}>
@@ -609,65 +919,153 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
                 <MdKeyboardArrowDown
                   size={16}
                   color="#5f6368"
-                  style={{ transform: showDetails ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+                  style={{
+                    transform: showDetails ? "rotate(180deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s",
+                  }}
                 />
               </div>
 
               {/* Expanded details */}
               {showDetails && (
-                <div style={{ marginTop: 8, fontSize: 12, color: "#5f6368", lineHeight: 1.8 }}>
-                  <div><span style={{ display: "inline-block", minWidth: 40 }}>from:</span> {senderName} &lt;{senderEmail}&gt;</div>
-                  <div><span style={{ display: "inline-block", minWidth: 40 }}>to:</span> {toEmail || "me"}</div>
-                  <div><span style={{ display: "inline-block", minWidth: 40 }}>date:</span> {fullDate}</div>
-                  <div><span style={{ display: "inline-block", minWidth: 40 }}>subject:</span> {email.subject}</div>
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 12,
+                    color: "#5f6368",
+                    lineHeight: 1.8,
+                  }}
+                >
+                  <div>
+                    <span style={{ display: "inline-block", minWidth: 40 }}>
+                      from:
+                    </span>{" "}
+                    {senderName} &lt;{senderEmail}&gt;
+                  </div>
+                  <div>
+                    <span style={{ display: "inline-block", minWidth: 40 }}>
+                      to:
+                    </span>{" "}
+                    {toEmail || "me"}
+                  </div>
+                  <div>
+                    <span style={{ display: "inline-block", minWidth: 40 }}>
+                      date:
+                    </span>{" "}
+                    {fullDate}
+                  </div>
+                  <div>
+                    <span style={{ display: "inline-block", minWidth: 40 }}>
+                      subject:
+                    </span>{" "}
+                    {email.subject}
+                  </div>
                 </div>
               )}
             </div>
 
             {/* Action icons */}
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-              <button onClick={onReply} title="Reply" style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-              ><MdReply size={18} /></button>
-              <button title="Forward" style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-              ><MdForward size={18} /></button>
+              <button
+                onClick={onReply}
+                title="Reply"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#5f6368",
+                  borderRadius: "50%",
+                  padding: 6,
+                  display: "flex",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "#f1f3f4")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "none")
+                }
+              >
+                <MdReply size={18} />
+              </button>
+              <button
+                title="Forward"
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#5f6368",
+                  borderRadius: "50%",
+                  padding: 6,
+                  display: "flex",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "#f1f3f4")
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "none")
+                }
+              >
+                <MdForward size={18} />
+              </button>
             </div>
           </div>
 
           {/* Body */}
           {loadingDetail ? (
-            <div style={{ color: "#5f6368", fontSize: 13, padding: "20px 0" }}>Loading message...</div>
+            <div style={{ color: "#5f6368", fontSize: 13, padding: "20px 0" }}>
+              Loading message...
+            </div>
           ) : detail?.html ? (
             <div
               style={{ fontSize: 14, color: "#202124", lineHeight: 1.7 }}
               dangerouslySetInnerHTML={{ __html: detail.html }}
             />
           ) : (
-            <div style={{ fontSize: 14, color: "#202124", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: "#202124",
+                lineHeight: 1.7,
+                whiteSpace: "pre-wrap",
+              }}
+            >
               {detail?.text || "(No message content)"}
             </div>
           )}
 
           {/* Attachments */}
           {!loadingDetail && detail?.attachments?.length > 0 && (
-            <div style={{ marginTop: 24, borderTop: "0.5px solid #e0e0e0", paddingTop: 16 }}>
+            <div
+              style={{
+                marginTop: 24,
+                borderTop: "0.5px solid #e0e0e0",
+                paddingTop: 16,
+              }}
+            >
               <div style={{ fontSize: 13, color: "#5f6368", marginBottom: 10 }}>
-                {detail.attachments.length} attachment{detail.attachments.length > 1 ? "s" : ""}
+                {detail.attachments.length} attachment
+                {detail.attachments.length > 1 ? "s" : ""}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                 {detail.attachments.map((att) => {
                   const isImage = att.contentType.startsWith("image/");
                   const isPdf = att.contentType === "application/pdf";
-                  const AttIcon = isImage ? MdImage : isPdf ? MdPictureAsPdf : MdInsertDriveFile;
-                  const iconColor = isImage ? "#34A853" : isPdf ? "#EA4335" : "#1a73e8";
-                  const sizeLabel = att.size >= 1024 * 1024
-                    ? `${(att.size / (1024 * 1024)).toFixed(1)} MB`
-                    : att.size >= 1024
-                    ? `${(att.size / 1024).toFixed(0)} KB`
-                    : `${att.size} B`;
+                  const AttIcon = isImage
+                    ? MdImage
+                    : isPdf
+                      ? MdPictureAsPdf
+                      : MdInsertDriveFile;
+                  const iconColor = isImage
+                    ? "#34A853"
+                    : isPdf
+                      ? "#EA4335"
+                      : "#1a73e8";
+                  const sizeLabel =
+                    att.size >= 1024 * 1024
+                      ? `${(att.size / (1024 * 1024)).toFixed(1)} MB`
+                      : att.size >= 1024
+                        ? `${(att.size / 1024).toFixed(0)} KB`
+                        : `${att.size} B`;
 
                   return (
                     <div
@@ -681,31 +1079,70 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
                       }}
                     >
                       {/* Preview area */}
-                      <div style={{
-                        height: 80,
-                        background: "#f1f3f4",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        borderBottom: "0.5px solid #e0e0e0",
-                      }}>
+                      <div
+                        style={{
+                          height: 80,
+                          background: "#f1f3f4",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          borderBottom: "0.5px solid #e0e0e0",
+                        }}
+                      >
                         <AttIcon size={36} color={iconColor} />
                       </div>
 
                       {/* Info + download row */}
-                      <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
-                        <AttIcon size={16} color={iconColor} style={{ flexShrink: 0 }} />
+                      <div
+                        style={{
+                          padding: "8px 10px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}
+                      >
+                        <AttIcon
+                          size={16}
+                          color={iconColor}
+                          style={{ flexShrink: 0 }}
+                        />
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 12, fontWeight: 500, color: "#202124", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div
+                            style={{
+                              fontSize: 12,
+                              fontWeight: 500,
+                              color: "#202124",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
                             {att.filename}
                           </div>
-                          <div style={{ fontSize: 11, color: "#5f6368" }}>{sizeLabel}</div>
+                          <div style={{ fontSize: 11, color: "#5f6368" }}>
+                            {sizeLabel}
+                          </div>
                         </div>
                         <button
-                          onClick={(e) => { e.stopPropagation(); downloadAttachment(att.index, att.filename); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadAttachment(att.index, att.filename);
+                          }}
                           title="Download"
                           disabled={downloadingIdx === att.index}
-                          style={{ background: "none", border: "none", cursor: downloadingIdx === att.index ? "default" : "pointer", color: "#5f6368", display: "flex", flexShrink: 0, padding: 0, opacity: downloadingIdx === att.index ? 0.4 : 1 }}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor:
+                              downloadingIdx === att.index
+                                ? "default"
+                                : "pointer",
+                            color: "#5f6368",
+                            display: "flex",
+                            flexShrink: 0,
+                            padding: 0,
+                            opacity: downloadingIdx === att.index ? 0.4 : 1,
+                          }}
                         >
                           <MdDownload size={18} />
                         </button>
@@ -722,12 +1159,36 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
         <div style={{ display: "flex", gap: 12, paddingLeft: 4 }}>
           <button
             onClick={onReply}
-            style={{ border: "0.5px solid #ccc", background: "#fff", borderRadius: 20, padding: "8px 20px", fontSize: 13, cursor: "pointer", color: "#202124", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}
+            style={{
+              border: "0.5px solid #ccc",
+              background: "#fff",
+              borderRadius: 20,
+              padding: "8px 20px",
+              fontSize: 13,
+              cursor: "pointer",
+              color: "#202124",
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
             <MdReply size={16} /> Reply
           </button>
           <button
-            style={{ border: "0.5px solid #ccc", background: "#fff", borderRadius: 20, padding: "8px 20px", fontSize: 13, cursor: "pointer", color: "#202124", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}
+            style={{
+              border: "0.5px solid #ccc",
+              background: "#fff",
+              borderRadius: 20,
+              padding: "8px 20px",
+              fontSize: 13,
+              cursor: "pointer",
+              color: "#202124",
+              fontWeight: 500,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
             <MdForward size={16} /> Forward
           </button>
@@ -737,55 +1198,71 @@ function EmailDetail({ email, onClose, onReply, onDelete, onMarkUnread, onPrev, 
   );
 }
 
+const PAGE_SIZE = 50;
+
+// Query-key factories
+const emailListKey = (nav, page) => ["emails", nav, page];
+const emailDetailKey = (id) => ["email", id];
+
+// Shared fetch helper for the email list
+async function fetchEmailList(nav, page) {
+  const url = nav === "Starred" ? "/emails/starred" : `/emails?page=${page}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (Array.isArray(data)) return { emails: data, total: data.length };
+  return { emails: data.emails || [], total: data.total || 0 };
+}
+
 export default function GmailUI() {
-  const [emails, setEmails] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
   const [selectedId, setSelectedId] = useState(null);
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [hoveredId, setHoveredId] = useState(null);
   const [showSelectDropdown, setShowSelectDropdown] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [unsubscribeTarget, setUnsubscribeTarget] = useState(null); // { id, sender }
+  const [unsubscribeTarget, setUnsubscribeTarget] = useState(null);
   const [unsubscribing, setUnsubscribing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalEmails, setTotalEmails] = useState(0);
-  const PAGE_SIZE = 50;
-
   const [activeNav, setActiveNav] = useState("Inbox");
-
-  useEffect(() => {
-    setLoading(true);
-    setEmails([]);
-    const url = activeNav === "Starred"
-      ? "/emails/starred"
-      : `/emails?page=${currentPage}`;
-    fetch(url)
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setEmails(data);
-          setTotalEmails(data.length);
-        } else {
-          setEmails(data.emails || []);
-          setTotalEmails(data.total || 0);
-        }
-        setLoading(false);
-      })
-      .catch((err) => { console.error("Failed to fetch emails:", err); setLoading(false); });
-  }, [activeNav, currentPage]);
   const [showCompose, setShowCompose] = useState(false);
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const isExpanded = sidebarOpen || sidebarHovered;
 
+  // ── Email list via React Query ──────────────────────────────────────────────
+  const { data: emailData, isLoading: loading } = useQuery({
+    queryKey: emailListKey(activeNav, currentPage),
+    queryFn: () => fetchEmailList(activeNav, currentPage),
+    // Keep previous page's data visible while the next page loads
+    placeholderData: (prev) => prev,
+  });
+
+  const emails = emailData?.emails ?? [];
+  const totalEmails = emailData?.total ?? 0;
+
+  // Helper: patch list cache in-place (for optimistic updates)
+  const patchList = (updater) =>
+    queryClient.setQueryData(emailListKey(activeNav, currentPage), (old) =>
+      old ? { ...old, emails: updater(old.emails) } : old,
+    );
+
+  // Prefetch email detail on hover so it's ready before you click
+  const prefetchDetail = (id) =>
+    queryClient.prefetchQuery({
+      queryKey: emailDetailKey(id),
+      queryFn: () => fetch(`/emails/${id}`).then((r) => r.json()),
+      staleTime: Infinity,
+    });
+
   const selectedEmail = emails.find((e) => e.id === selectedId);
 
   const toggleStar = (id, e) => {
     e.stopPropagation();
-    setEmails((prev) =>
-      prev.map((em) => (em.id === id ? { ...em, starred: !em.starred } : em))
+    patchList((list) =>
+      list.map((em) => (em.id === id ? { ...em, starred: !em.starred } : em)),
     );
   };
 
@@ -795,8 +1272,8 @@ export default function GmailUI() {
       return;
     }
     setSelectedId(id);
-    setEmails((prev) =>
-      prev.map((em) => (em.id === id ? { ...em, unread: false } : em))
+    patchList((list) =>
+      list.map((em) => (em.id === id ? { ...em, unread: false } : em)),
     );
   };
 
@@ -810,20 +1287,15 @@ export default function GmailUI() {
   };
 
   const filteredEmails = emails.filter((e) => {
-    const matchesSearch =
-      search === "" ||
+    if (search === "") return true;
+    return (
       e.sender.toLowerCase().includes(search.toLowerCase()) ||
-      e.subject.toLowerCase().includes(search.toLowerCase());
-
-    // backend already returns the right set for each nav;
-    // client-side filter only needed for views not yet backed by a dedicated endpoint
-    const matchesNav = true;
-
-    return matchesSearch && matchesNav;
+      e.subject.toLowerCase().includes(search.toLowerCase())
+    );
   });
 
   const totalPages = Math.ceil(totalEmails / PAGE_SIZE) || 1;
-  const paginatedEmails = filteredEmails; // server already returns the current page's slice
+  const paginatedEmails = filteredEmails;
   const pageStart = totalEmails === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
   const pageEnd = Math.min(currentPage * PAGE_SIZE, totalEmails);
 
@@ -832,61 +1304,40 @@ export default function GmailUI() {
     filteredEmails.every((e) => checkedIds.has(e.id));
   const someChecked = checkedIds.size > 0;
 
-  const toggleSelectAll = () => {
-    if (allChecked) {
-      setCheckedIds(new Set());
-    } else {
-      setCheckedIds(new Set(filteredEmails.map((e) => e.id)));
-    }
-  };
+  const toggleSelectAll = () =>
+    allChecked
+      ? setCheckedIds(new Set())
+      : setCheckedIds(new Set(filteredEmails.map((e) => e.id)));
 
   const markCheckedRead = () => {
-    setEmails((prev) =>
-      prev.map((em) =>
-        checkedIds.has(em.id) ? { ...em, unread: false } : em
-      )
+    patchList((list) =>
+      list.map((em) => (checkedIds.has(em.id) ? { ...em, unread: false } : em)),
     );
     setCheckedIds(new Set());
   };
 
   const markCheckedUnread = () => {
-    setEmails((prev) =>
-      prev.map((em) =>
-        checkedIds.has(em.id) ? { ...em, unread: true } : em
-      )
+    patchList((list) =>
+      list.map((em) => (checkedIds.has(em.id) ? { ...em, unread: true } : em)),
     );
     setCheckedIds(new Set());
   };
 
   const deleteChecked = () => {
-    setEmails((prev) => prev.filter((em) => !checkedIds.has(em.id)));
+    patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
     setCheckedIds(new Set());
   };
 
-  const refreshEmails = () => {
+  const refreshEmails = async () => {
     setRefreshing(true);
-    setLoading(true);
-    const url = activeNav === "Starred"
-      ? "/emails/starred"
-      : `/emails?page=${currentPage}`;
-    fetch(url)
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setEmails(data);
-          setTotalEmails(data.length);
-        } else {
-          setEmails(data.emails || []);
-          setTotalEmails(data.total || 0);
-        }
-        setLoading(false);
-        setRefreshing(false);
-      })
-      .catch(() => { setLoading(false); setRefreshing(false); });
+    await queryClient.invalidateQueries({
+      queryKey: emailListKey(activeNav, currentPage),
+    });
+    setRefreshing(false);
   };
 
   const markAllRead = () => {
-    setEmails((prev) => prev.map((em) => ({ ...em, unread: false })));
+    patchList((list) => list.map((em) => ({ ...em, unread: false })));
     setShowMoreMenu(false);
   };
 
@@ -894,8 +1345,10 @@ export default function GmailUI() {
     if (!unsubscribeTarget) return;
     setUnsubscribing(true);
     try {
-      await fetch(`/emails/${unsubscribeTarget.id}/unsubscribe`, { method: "POST" });
-      setEmails((prev) => prev.filter((em) => em.id !== unsubscribeTarget.id));
+      await fetch(`/emails/${unsubscribeTarget.id}/unsubscribe`, {
+        method: "POST",
+      });
+      patchList((list) => list.filter((em) => em.id !== unsubscribeTarget.id));
     } catch (err) {
       console.error("Unsubscribe failed:", err);
     } finally {
@@ -1233,7 +1686,10 @@ export default function GmailUI() {
                   whiteSpace: "nowrap",
                 }}
               >
-                <MdLabel size={18} style={{ color: style.color, flexShrink: 0 }} />
+                <MdLabel
+                  size={18}
+                  style={{ color: style.color, flexShrink: 0 }}
+                />
                 <span
                   style={{
                     opacity: isExpanded ? 1 : 0,
@@ -1269,232 +1725,315 @@ export default function GmailUI() {
           {/* Content */}
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
             {(() => {
-              const emailIdx = paginatedEmails.findIndex(e => e.id === selectedId);
+              const emailIdx = paginatedEmails.findIndex(
+                (e) => e.id === selectedId,
+              );
               const emailPosition = pageStart + emailIdx;
               return selectedEmail ? (
-              <EmailDetail
-                email={selectedEmail}
-                onClose={() => setSelectedId(null)}
-                onReply={() => setShowCompose(true)}
-                onDelete={() => {
-                  setEmails(prev => prev.filter(em => em.id !== selectedEmail.id));
-                  setSelectedId(null);
-                }}
-                onMarkUnread={() => {
-                  setEmails(prev => prev.map(em => em.id === selectedEmail.id ? { ...em, unread: true } : em));
-                  setSelectedId(null);
-                }}
-                emailPosition={emailPosition}
-                totalEmails={totalEmails}
-                onPrev={emailIdx > 0 ? () => setSelectedId(paginatedEmails[emailIdx - 1].id) : null}
-                onNext={emailIdx < paginatedEmails.length - 1 ? () => setSelectedId(paginatedEmails[emailIdx + 1].id) : null}
-              />
-            ) : (
-              <div
-                style={{
-                  flex: 1,
-                  display: "flex",
-                  flexDirection: "column",
-                  overflow: "hidden",
-                }}
-              >
-
-                {/* Toolbar */}
+                <EmailDetail
+                  email={selectedEmail}
+                  onClose={() => setSelectedId(null)}
+                  onReply={() => setShowCompose(true)}
+                  onDelete={() => {
+                    patchList((list) =>
+                      list.filter((em) => em.id !== selectedEmail.id),
+                    );
+                    setSelectedId(null);
+                  }}
+                  onMarkUnread={() => {
+                    patchList((list) =>
+                      list.map((em) =>
+                        em.id === selectedEmail.id
+                          ? { ...em, unread: true }
+                          : em,
+                      ),
+                    );
+                    setSelectedId(null);
+                  }}
+                  emailPosition={emailPosition}
+                  totalEmails={totalEmails}
+                  onPrev={
+                    emailIdx > 0
+                      ? () => setSelectedId(paginatedEmails[emailIdx - 1].id)
+                      : null
+                  }
+                  onNext={
+                    emailIdx < paginatedEmails.length - 1
+                      ? () => setSelectedId(paginatedEmails[emailIdx + 1].id)
+                      : null
+                  }
+                />
+              ) : (
                 <div
                   style={{
+                    flex: 1,
                     display: "flex",
-                    alignItems: "center",
-                    padding: "4px 16px",
-                    gap: 4,
-                    borderBottom: "0.5px solid #e0e0e0",
-                    minHeight: 40,
-                    background: someChecked ? "#e8f0fe" : "transparent",
-                    transition: "background 0.15s",
+                    flexDirection: "column",
+                    overflow: "hidden",
                   }}
                 >
-                  {/* Select-all checkbox + dropdown caret */}
-                  <div style={{ display: "flex", alignItems: "center", position: "relative", flexShrink: 0 }}>
-                    {/* Checkbox */}
+                  {/* Toolbar */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      padding: "4px 16px",
+                      gap: 4,
+                      borderBottom: "0.5px solid #e0e0e0",
+                      minHeight: 40,
+                      background: someChecked ? "#e8f0fe" : "transparent",
+                      transition: "background 0.15s",
+                    }}
+                  >
+                    {/* Select-all checkbox + dropdown caret */}
                     <div
-                      onClick={toggleSelectAll}
                       style={{
-                        width: 18,
-                        height: 18,
-                        border: `2px solid ${allChecked ? "#1a73e8" : someChecked ? "#1a73e8" : "#5f6368"}`,
-                        borderRadius: 3,
-                        background: allChecked ? "#1a73e8" : "transparent",
-                        cursor: "pointer",
-                        flexShrink: 0,
                         display: "flex",
                         alignItems: "center",
-                        justifyContent: "center",
                         position: "relative",
+                        flexShrink: 0,
                       }}
                     >
-                      {allChecked && (
-                        <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>
-                      )}
-                      {!allChecked && someChecked && (
-                        <span style={{ color: "#1a73e8", fontSize: 14, lineHeight: 1, position: "absolute" }}>—</span>
-                      )}
-                    </div>
-
-                    {/* Dropdown caret */}
-                    <div
-                      onClick={(e) => { e.stopPropagation(); setShowSelectDropdown((v) => !v); }}
-                      style={{
-                        width: 16,
-                        height: 18,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        cursor: "pointer",
-                        color: "#5f6368",
-                        userSelect: "none",
-                      }}
-                    >
-                      <MdArrowDropDown size={18} />
-                    </div>
-
-                    {/* Dropdown menu */}
-                    {showSelectDropdown && (
-                      <>
-                        {/* Backdrop to close */}
-                        <div
-                          onClick={() => setShowSelectDropdown(false)}
-                          style={{ position: "fixed", inset: 0, zIndex: 99 }}
-                        />
-                        <div
-                          style={{
-                            position: "absolute",
-                            top: 26,
-                            left: 0,
-                            background: "#fff",
-                            borderRadius: 8,
-                            boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
-                            zIndex: 100,
-                            minWidth: 140,
-                            padding: "4px 0",
-                            border: "0.5px solid #e0e0e0",
-                          }}
-                        >
-                          {[
-                            {
-                              label: "All",
-                              action: () => setCheckedIds(new Set(filteredEmails.map((e) => e.id))),
-                            },
-                            {
-                              label: "None",
-                              action: () => setCheckedIds(new Set()),
-                            },
-                            {
-                              label: "Read",
-                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => !e.unread).map((e) => e.id))),
-                            },
-                            {
-                              label: "Unread",
-                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => e.unread).map((e) => e.id))),
-                            },
-                            {
-                              label: "Starred",
-                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => e.starred).map((e) => e.id))),
-                            },
-                            {
-                              label: "Unstarred",
-                              action: () => setCheckedIds(new Set(filteredEmails.filter((e) => !e.starred).map((e) => e.id))),
-                            },
-                          ].map(({ label, action }) => (
-                            <div
-                              key={label}
-                              onClick={() => { action(); setShowSelectDropdown(false); }}
-                              style={{
-                                padding: "8px 20px",
-                                fontSize: 14,
-                                color: "#202124",
-                                cursor: "pointer",
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                            >
-                              {label}
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {someChecked ? (
-                    <>
-                      <span style={{ fontSize: 13, color: "#202124", marginLeft: 8, marginRight: 4 }}>
-                        {checkedIds.size} selected
-                      </span>
-                      {[
-                        { label: "Archive", Icon: MdArchive, action: deleteChecked },
-                        { label: "Delete", Icon: MdDelete, action: deleteChecked },
-                        { label: "Mark read", Icon: MdMarkEmailRead, action: markCheckedRead },
-                        { label: "Mark unread", Icon: MdMarkEmailUnread, action: markCheckedUnread },
-                      ].map(({ label, Icon, action }) => (
-                        <button
-                          key={label}
-                          onClick={action}
-                          title={label}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            borderRadius: "50%",
-                            width: 32,
-                            height: 32,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#5f6368",
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "#d2e3fc")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                        >
-                          <Icon size={18} />
-                        </button>
-                      ))}
-                    </>
-                  ) : null}
-
-                  {/* Refresh + more menu — right next to multiselect */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
-                    {/* Refresh */}
-                    <button
-                      onClick={refreshEmails}
-                      title="Refresh"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: "pointer",
-                        borderRadius: "50%",
-                        width: 36,
-                        height: 36,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "#5f6368",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                    >
-                      <MdRefresh
-                        size={20}
+                      {/* Checkbox */}
+                      <div
+                        onClick={toggleSelectAll}
                         style={{
-                          transition: "transform 0.5s",
-                          transform: refreshing ? "rotate(360deg)" : "rotate(0deg)",
+                          width: 18,
+                          height: 18,
+                          border: `2px solid ${allChecked ? "#1a73e8" : someChecked ? "#1a73e8" : "#5f6368"}`,
+                          borderRadius: 3,
+                          background: allChecked ? "#1a73e8" : "transparent",
+                          cursor: "pointer",
+                          flexShrink: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          position: "relative",
                         }}
-                      />
-                    </button>
+                      >
+                        {allChecked && (
+                          <span
+                            style={{
+                              color: "#fff",
+                              fontSize: 11,
+                              lineHeight: 1,
+                            }}
+                          >
+                            ✓
+                          </span>
+                        )}
+                        {!allChecked && someChecked && (
+                          <span
+                            style={{
+                              color: "#1a73e8",
+                              fontSize: 14,
+                              lineHeight: 1,
+                              position: "absolute",
+                            }}
+                          >
+                            —
+                          </span>
+                        )}
+                      </div>
 
-                    {/* Three-dots menu */}
-                    <div style={{ position: "relative" }}>
+                      {/* Dropdown caret */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowSelectDropdown((v) => !v);
+                        }}
+                        style={{
+                          width: 16,
+                          height: 18,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          color: "#5f6368",
+                          userSelect: "none",
+                        }}
+                      >
+                        <MdArrowDropDown size={18} />
+                      </div>
+
+                      {/* Dropdown menu */}
+                      {showSelectDropdown && (
+                        <>
+                          {/* Backdrop to close */}
+                          <div
+                            onClick={() => setShowSelectDropdown(false)}
+                            style={{ position: "fixed", inset: 0, zIndex: 99 }}
+                          />
+                          <div
+                            style={{
+                              position: "absolute",
+                              top: 26,
+                              left: 0,
+                              background: "#fff",
+                              borderRadius: 8,
+                              boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                              zIndex: 100,
+                              minWidth: 140,
+                              padding: "4px 0",
+                              border: "0.5px solid #e0e0e0",
+                            }}
+                          >
+                            {[
+                              {
+                                label: "All",
+                                action: () =>
+                                  setCheckedIds(
+                                    new Set(filteredEmails.map((e) => e.id)),
+                                  ),
+                              },
+                              {
+                                label: "None",
+                                action: () => setCheckedIds(new Set()),
+                              },
+                              {
+                                label: "Read",
+                                action: () =>
+                                  setCheckedIds(
+                                    new Set(
+                                      filteredEmails
+                                        .filter((e) => !e.unread)
+                                        .map((e) => e.id),
+                                    ),
+                                  ),
+                              },
+                              {
+                                label: "Unread",
+                                action: () =>
+                                  setCheckedIds(
+                                    new Set(
+                                      filteredEmails
+                                        .filter((e) => e.unread)
+                                        .map((e) => e.id),
+                                    ),
+                                  ),
+                              },
+                              {
+                                label: "Starred",
+                                action: () =>
+                                  setCheckedIds(
+                                    new Set(
+                                      filteredEmails
+                                        .filter((e) => e.starred)
+                                        .map((e) => e.id),
+                                    ),
+                                  ),
+                              },
+                              {
+                                label: "Unstarred",
+                                action: () =>
+                                  setCheckedIds(
+                                    new Set(
+                                      filteredEmails
+                                        .filter((e) => !e.starred)
+                                        .map((e) => e.id),
+                                    ),
+                                  ),
+                              },
+                            ].map(({ label, action }) => (
+                              <div
+                                key={label}
+                                onClick={() => {
+                                  action();
+                                  setShowSelectDropdown(false);
+                                }}
+                                style={{
+                                  padding: "8px 20px",
+                                  fontSize: 14,
+                                  color: "#202124",
+                                  cursor: "pointer",
+                                }}
+                                onMouseEnter={(e) =>
+                                  (e.currentTarget.style.background = "#f1f3f4")
+                                }
+                                onMouseLeave={(e) =>
+                                  (e.currentTarget.style.background =
+                                    "transparent")
+                                }
+                              >
+                                {label}
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {someChecked ? (
+                      <>
+                        <span
+                          style={{
+                            fontSize: 13,
+                            color: "#202124",
+                            marginLeft: 8,
+                            marginRight: 4,
+                          }}
+                        >
+                          {checkedIds.size} selected
+                        </span>
+                        {[
+                          {
+                            label: "Archive",
+                            Icon: MdArchive,
+                            action: deleteChecked,
+                          },
+                          {
+                            label: "Delete",
+                            Icon: MdDelete,
+                            action: deleteChecked,
+                          },
+                          {
+                            label: "Mark read",
+                            Icon: MdMarkEmailRead,
+                            action: markCheckedRead,
+                          },
+                          {
+                            label: "Mark unread",
+                            Icon: MdMarkEmailUnread,
+                            action: markCheckedUnread,
+                          },
+                        ].map(({ label, Icon, action }) => (
+                          <button
+                            key={label}
+                            onClick={action}
+                            title={label}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              borderRadius: "50%",
+                              width: 32,
+                              height: 32,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#5f6368",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#d2e3fc")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "none")
+                            }
+                          >
+                            <Icon size={18} />
+                          </button>
+                        ))}
+                      </>
+                    ) : null}
+
+                    {/* Refresh + more menu — right next to multiselect */}
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 2 }}
+                    >
+                      {/* Refresh */}
                       <button
-                        onClick={() => setShowMoreMenu((v) => !v)}
-                        title="More"
+                        onClick={refreshEmails}
+                        title="Refresh"
                         style={{
                           background: "none",
                           border: "none",
@@ -1507,463 +2046,647 @@ export default function GmailUI() {
                           justifyContent: "center",
                           color: "#5f6368",
                         }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                        onMouseEnter={(e) =>
+                          (e.currentTarget.style.background = "#f1f3f4")
+                        }
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "none")
+                        }
                       >
-                        <MdMoreVert size={20} />
+                        <MdRefresh
+                          size={20}
+                          style={{
+                            transition: "transform 0.5s",
+                            transform: refreshing
+                              ? "rotate(360deg)"
+                              : "rotate(0deg)",
+                          }}
+                        />
                       </button>
 
-                      {showMoreMenu && (
-                        <>
-                          <div
-                            onClick={() => setShowMoreMenu(false)}
-                            style={{ position: "fixed", inset: 0, zIndex: 99 }}
-                          />
-                          <div
-                            style={{
-                              position: "absolute",
-                              top: 38,
-                              left: 0,
-                              background: "#fff",
-                              borderRadius: 8,
-                              boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
-                              zIndex: 100,
-                              minWidth: 180,
-                              padding: "4px 0",
-                              border: "0.5px solid #e0e0e0",
-                            }}
-                          >
-                            {[
-                              { label: "Mark all as read", action: markAllRead },
-                            ].map(({ label, action }) => (
-                              <div
-                                key={label}
-                                onClick={action}
-                                style={{ padding: "10px 20px", fontSize: 14, color: "#202124", cursor: "pointer" }}
-                                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-                                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                              >
-                                {label}
-                              </div>
-                            ))}
-                          </div>
-                        </>
-                      )}
+                      {/* Three-dots menu */}
+                      <div style={{ position: "relative" }}>
+                        <button
+                          onClick={() => setShowMoreMenu((v) => !v)}
+                          title="More"
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            borderRadius: "50%",
+                            width: 36,
+                            height: 36,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#5f6368",
+                          }}
+                          onMouseEnter={(e) =>
+                            (e.currentTarget.style.background = "#f1f3f4")
+                          }
+                          onMouseLeave={(e) =>
+                            (e.currentTarget.style.background = "none")
+                          }
+                        >
+                          <MdMoreVert size={20} />
+                        </button>
+
+                        {showMoreMenu && (
+                          <>
+                            <div
+                              onClick={() => setShowMoreMenu(false)}
+                              style={{
+                                position: "fixed",
+                                inset: 0,
+                                zIndex: 99,
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: "absolute",
+                                top: 38,
+                                left: 0,
+                                background: "#fff",
+                                borderRadius: 8,
+                                boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+                                zIndex: 100,
+                                minWidth: 180,
+                                padding: "4px 0",
+                                border: "0.5px solid #e0e0e0",
+                              }}
+                            >
+                              {[
+                                {
+                                  label: "Mark all as read",
+                                  action: markAllRead,
+                                },
+                              ].map(({ label, action }) => (
+                                <div
+                                  key={label}
+                                  onClick={action}
+                                  style={{
+                                    padding: "10px 20px",
+                                    fontSize: 14,
+                                    color: "#202124",
+                                    cursor: "pointer",
+                                  }}
+                                  onMouseEnter={(e) =>
+                                    (e.currentTarget.style.background =
+                                      "#f1f3f4")
+                                  }
+                                  onMouseLeave={(e) =>
+                                    (e.currentTarget.style.background =
+                                      "transparent")
+                                  }
+                                >
+                                  {label}
+                                </div>
+                              ))}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Spacer pushes pagination to the right */}
-                  <div style={{ flex: 1 }} />
+                    {/* Spacer pushes pagination to the right */}
+                    <div style={{ flex: 1 }} />
 
-                  {/* Pagination — "1–50 of X" + prev/next arrows */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 2, color: "#5f6368", fontSize: 13 }}>
-                    <span style={{ marginRight: 6, whiteSpace: "nowrap" }}>
-                      {pageStart}–{pageEnd} of {totalEmails}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                      disabled={currentPage === 1}
-                      title="Newer"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: currentPage === 1 ? "default" : "pointer",
-                        borderRadius: "50%",
-                        width: 36,
-                        height: 36,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: currentPage === 1 ? "#bdbdbd" : "#5f6368",
-                      }}
-                      onMouseEnter={(e) => { if (currentPage > 1) e.currentTarget.style.background = "#f1f3f4"; }}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                    >
-                      <MdKeyboardArrowLeft size={20} />
-                    </button>
-                    <button
-                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                      disabled={currentPage === totalPages}
-                      title="Older"
-                      style={{
-                        background: "none",
-                        border: "none",
-                        cursor: currentPage === totalPages ? "default" : "pointer",
-                        borderRadius: "50%",
-                        width: 36,
-                        height: 36,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: currentPage === totalPages ? "#bdbdbd" : "#5f6368",
-                      }}
-                      onMouseEnter={(e) => { if (currentPage < totalPages) e.currentTarget.style.background = "#f1f3f4"; }}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-                    >
-                      <MdKeyboardArrowRight size={20} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Email List */}
-                <div style={{ flex: 1, overflowY: "auto" }}>
-                  {loading && (
+                    {/* Pagination — "1–50 of X" + prev/next arrows */}
                     <div
                       style={{
-                        padding: 40,
-                        textAlign: "center",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 2,
                         color: "#5f6368",
-                        fontSize: 14,
+                        fontSize: 13,
                       }}
                     >
-                      Loading emails...
-                    </div>
-                  )}
-                  {!loading && filteredEmails.length === 0 && (
-                    <div
-                      style={{
-                        padding: 40,
-                        textAlign: "center",
-                        color: "#5f6368",
-                        fontSize: 14,
-                      }}
-                    >
-                      {activeNav === "Starred"
-                        ? "No starred messages"
-                        : activeNav === "Sent"
-                        ? "No sent messages"
-                        : activeNav === "Drafts"
-                        ? "No drafts"
-                        : activeNav === "Trash"
-                        ? "Trash is empty"
-                        : activeNav === "Snoozed"
-                        ? "No snoozed messages"
-                        : "No emails found"}
-                    </div>
-                  )}
-                  {paginatedEmails.map((email) => {
-                    const isChecked = checkedIds.has(email.id);
-                    const isHovered = hoveredId === email.id;
-                    const showCheckbox = isChecked || isHovered;
-                    return (
-                    <div
-                      key={email.id}
-                      onClick={() => openEmail(email.id)}
-                      onMouseEnter={() => setHoveredId(email.id)}
-                      onMouseLeave={() => setHoveredId(null)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        padding: "10px 16px",
-                        borderBottom: "0.5px solid #f0f0f0",
-                        cursor: "pointer",
-                        background: isChecked
-                          ? "#e8f0fe"
-                          : isHovered
-                          ? "#f2f6fc"
-                          : email.unread
-                          ? "#fff"
-                          : "#f6f8fc",
-                        transition: "background 0.1s",
-                        fontWeight: email.unread ? 600 : 400,
-                      }}
-                    >
-                      <div
+                      <span style={{ marginRight: 6, whiteSpace: "nowrap" }}>
+                        {pageStart}–{pageEnd} of {totalEmails}
+                      </span>
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.max(1, p - 1))
+                        }
+                        disabled={currentPage === 1}
+                        title="Newer"
                         style={{
-                          width: 8,
-                          height: 8,
+                          background: "none",
+                          border: "none",
+                          cursor: currentPage === 1 ? "default" : "pointer",
                           borderRadius: "50%",
-                          background: email.unread ? "#1a73e8" : "transparent",
-                          flexShrink: 0,
-                        }}
-                      />
-                      {/* Avatar / Checkbox toggle */}
-                      <div
-                        onClick={(e) => toggleCheck(email.id, e)}
-                        style={{
-                          width: 32,
-                          height: 32,
-                          flexShrink: 0,
+                          width: 36,
+                          height: 36,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
+                          color: currentPage === 1 ? "#bdbdbd" : "#5f6368",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (currentPage > 1)
+                            e.currentTarget.style.background = "#f1f3f4";
+                        }}
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "none")
+                        }
+                      >
+                        <MdKeyboardArrowLeft size={20} />
+                      </button>
+                      <button
+                        onClick={() =>
+                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                        }
+                        disabled={currentPage === totalPages}
+                        title="Older"
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor:
+                            currentPage === totalPages ? "default" : "pointer",
+                          borderRadius: "50%",
+                          width: 36,
+                          height: 36,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          color:
+                            currentPage === totalPages ? "#bdbdbd" : "#5f6368",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (currentPage < totalPages)
+                            e.currentTarget.style.background = "#f1f3f4";
+                        }}
+                        onMouseLeave={(e) =>
+                          (e.currentTarget.style.background = "none")
+                        }
+                      >
+                        <MdKeyboardArrowRight size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Email List */}
+                  <div style={{ flex: 1, overflowY: "auto" }}>
+                    {loading && (
+                      <div
+                        style={{
+                          padding: 40,
+                          textAlign: "center",
+                          color: "#5f6368",
+                          fontSize: 14,
                         }}
                       >
-                        {showCheckbox ? (
+                        Loading emails...
+                      </div>
+                    )}
+                    {!loading && filteredEmails.length === 0 && (
+                      <div
+                        style={{
+                          padding: 40,
+                          textAlign: "center",
+                          color: "#5f6368",
+                          fontSize: 14,
+                        }}
+                      >
+                        {activeNav === "Starred"
+                          ? "No starred messages"
+                          : activeNav === "Sent"
+                            ? "No sent messages"
+                            : activeNav === "Drafts"
+                              ? "No drafts"
+                              : activeNav === "Trash"
+                                ? "Trash is empty"
+                                : activeNav === "Snoozed"
+                                  ? "No snoozed messages"
+                                  : "No emails found"}
+                      </div>
+                    )}
+                    {paginatedEmails.map((email) => {
+                      const isChecked = checkedIds.has(email.id);
+                      const isHovered = hoveredId === email.id;
+                      const showCheckbox = isChecked || isHovered;
+                      return (
+                        <div
+                          key={email.id}
+                          onClick={() => openEmail(email.id)}
+                          onMouseEnter={() => {
+                            setHoveredId(email.id);
+                            prefetchDetail(email.id);
+                          }}
+                          onMouseLeave={() => setHoveredId(null)}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 12,
+                            padding: "10px 16px",
+                            borderBottom: "0.5px solid #f0f0f0",
+                            cursor: "pointer",
+                            background: isChecked
+                              ? "#e8f0fe"
+                              : isHovered
+                                ? "#f2f6fc"
+                                : email.unread
+                                  ? "#fff"
+                                  : "#f6f8fc",
+                            transition: "background 0.1s",
+                            fontWeight: email.unread ? 600 : 400,
+                          }}
+                        >
                           <div
                             style={{
-                              width: 18,
-                              height: 18,
-                              border: `2px solid ${isChecked ? "#1a73e8" : "#5f6368"}`,
-                              borderRadius: 3,
-                              background: isChecked ? "#1a73e8" : "#fff",
+                              width: 8,
+                              height: 8,
+                              borderRadius: "50%",
+                              background: email.unread
+                                ? "#1a73e8"
+                                : "transparent",
+                              flexShrink: 0,
+                            }}
+                          />
+                          {/* Avatar / Checkbox toggle */}
+                          <div
+                            onClick={(e) => toggleCheck(email.id, e)}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              flexShrink: 0,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              flexShrink: 0,
                             }}
                           >
-                            {isChecked && (
-                              <span style={{ color: "#fff", fontSize: 11, lineHeight: 1 }}>✓</span>
-                            )}
-                          </div>
-                        ) : (
-                          <Avatar
-                            initials={email.avatar}
-                            color={email.avatarColor}
-                            size={32}
-                          />
-                        )}
-                      </div>
-                      <span
-                        onClick={(e) => toggleStar(email.id, e)}
-                        style={{
-                          cursor: "pointer",
-                          flexShrink: 0,
-                          color: email.starred ? "#F4B400" : "#ccc",
-                          display: "flex",
-                          alignItems: "center",
-                          transition: "color 0.15s",
-                        }}
-                      >
-                        {email.starred
-                          ? <MdStar size={18} />
-                          : <MdStarBorder size={18} />}
-                      </span>
-                      <span
-                        style={{
-                          minWidth: 148,
-                          maxWidth: 148,
-                          fontSize: 14,
-                          color: "#202124",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {email.sender}
-                      </span>
-                      <div
-                        style={{
-                          flex: 1,
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 3,
-                          overflow: "hidden",
-                          minWidth: 0,
-                        }}
-                      >
-                        {/* Subject + preview line */}
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
-                          <span
-                            style={{
-                              fontSize: 14,
-                              color: "#202124",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {email.subject}
-                          </span>
-                          <span style={{ color: "#ccc", fontSize: 12, flexShrink: 0 }}>—</span>
-                          <span
-                            style={{
-                              fontSize: 14,
-                              color: "#5f6368",
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {email.preview}
-                          </span>
-                        </div>
-
-                        {/* Attachment chips */}
-                        {email.attachments?.length > 0 && (
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {email.attachments.slice(0, 3).map((att, i) => {
-                              const isPdf = att.contentType === "application/pdf" ||
-                                att.filename?.toLowerCase().endsWith(".pdf");
-                              const isImage = att.contentType?.startsWith("image/");
-                              const Icon = isPdf ? MdPictureAsPdf : isImage ? MdImage : MdAttachFile;
-                              return (
-                                <div
-                                  key={i}
-                                  style={{
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 4,
-                                    borderRadius: 12,
-                                    padding: "3px 10px 3px 7px",
-                                    fontSize: 12,
-                                    fontWeight: 500,
-                                    maxWidth: 180,
-                                    overflow: "hidden",
-                                    flexShrink: 0,
-                                    background: "#f1f3f4",
-                                    color: "#444746",
-                                  }}
-                                >
-                                  <Icon
-                                    size={15}
-                                    style={{
-                                      flexShrink: 0,
-                                      color: isPdf ? "#c5221f" : "#5f6368",
-                                    }}
-                                  />
-                                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                    {att.filename}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                            {email.attachments.length > 3 && (
+                            {showCheckbox ? (
                               <div
                                 style={{
-                                  borderRadius: 12,
-                                  padding: "3px 9px",
-                                  background: "#f1f3f4",
-                                  fontSize: 12,
-                                  color: "#444746",
-                                  fontWeight: 500,
-                                  flexShrink: 0,
-                                }}
-                              >
-                                +{email.attachments.length - 3}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 2,
-                          flexShrink: 0,
-                          minWidth: 190,
-                          justifyContent: "flex-end",
-                        }}
-                      >
-                        {isHovered ? (
-                          /* Hover action buttons */
-                          <>
-                            {/* Unsubscribe — text only */}
-                            <button
-                              title="Unsubscribe"
-                              onClick={(e) => { e.stopPropagation(); setUnsubscribeTarget({ id: email.id, sender: email.sender }); }}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              style={{
-                                background: "none",
-                                border: "0.5px solid #c5c5c5",
-                                borderRadius: 4,
-                                cursor: "pointer",
-                                color: "#444746",
-                                fontSize: 12,
-                                fontWeight: 500,
-                                padding: "2px 8px",
-                                marginRight: 4,
-                                whiteSpace: "nowrap",
-                                lineHeight: "20px",
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.background = "#f1f3f4";
-                                e.currentTarget.style.borderColor = "#444746";
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.background = "none";
-                                e.currentTarget.style.borderColor = "#c5c5c5";
-                              }}
-                            >
-                              Unsubscribe
-                            </button>
-
-                            {/* Icon action buttons */}
-                            {[
-                              { Icon: MdArchive,         title: "Archive",        action: async (e) => {
-                                  e.stopPropagation();
-                                  setEmails(prev => prev.filter(em => em.id !== email.id));
-                                  await fetch(`/emails/${email.id}/archive`, { method: "POST" });
-                              }},
-                              { Icon: MdDelete,          title: "Delete",         action: async (e) => {
-                                  e.stopPropagation();
-                                  setEmails(prev => prev.filter(em => em.id !== email.id));
-                                  await fetch(`/emails/${email.id}/trash`, { method: "POST" });
-                              }},
-                              { Icon: MdMarkEmailUnread, title: "Mark as unread", action: async (e) => {
-                                  e.stopPropagation();
-                                  setEmails(prev => prev.map(em => em.id === email.id ? { ...em, unread: true } : em));
-                                  await fetch(`/emails/${email.id}/mark-unread`, { method: "POST" });
-                              }},
-                              { Icon: MdAccessTime,      title: "Snooze",         action: (e) => { e.stopPropagation(); } },
-                            ].map(({ Icon, title, action }) => (
-                              <button
-                                key={title}
-                                title={title}
-                                onClick={action}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                style={{
-                                  background: "none",
-                                  border: "none",
-                                  cursor: "pointer",
-                                  color: "#5f6368",
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: "50%",
+                                  width: 18,
+                                  height: 18,
+                                  border: `2px solid ${isChecked ? "#1a73e8" : "#5f6368"}`,
+                                  borderRadius: 3,
+                                  background: isChecked ? "#1a73e8" : "#fff",
                                   display: "flex",
                                   alignItems: "center",
                                   justifyContent: "center",
                                   flexShrink: 0,
                                 }}
-                                onMouseEnter={(e) => { e.stopPropagation(); e.currentTarget.style.background = "rgba(0,0,0,0.08)"; }}
-                                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
                               >
-                                <Icon size={16} />
-                              </button>
-                            ))}
-                          </>
-                        ) : (
-                          /* Normal: label chip + time */
-                          <>
-                            {email.label && email.label !== "inbox" && (
-                              <span
-                                style={{
-                                  fontSize: 11,
-                                  padding: "2px 7px",
-                                  borderRadius: 4,
-                                  fontWeight: 500,
-                                  background: LABEL_STYLES[email.label]?.bg,
-                                  color: LABEL_STYLES[email.label]?.color,
-                                }}
-                              >
-                                {email.label.charAt(0).toUpperCase() + email.label.slice(1)}
-                              </span>
+                                {isChecked && (
+                                  <span
+                                    style={{
+                                      color: "#fff",
+                                      fontSize: 11,
+                                      lineHeight: 1,
+                                    }}
+                                  >
+                                    ✓
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <Avatar
+                                initials={email.avatar}
+                                color={email.avatarColor}
+                                size={32}
+                              />
                             )}
-                            <span
+                          </div>
+                          <span
+                            onClick={(e) => toggleStar(email.id, e)}
+                            style={{
+                              cursor: "pointer",
+                              flexShrink: 0,
+                              color: email.starred ? "#F4B400" : "#ccc",
+                              display: "flex",
+                              alignItems: "center",
+                              transition: "color 0.15s",
+                            }}
+                          >
+                            {email.starred ? (
+                              <MdStar size={18} />
+                            ) : (
+                              <MdStarBorder size={18} />
+                            )}
+                          </span>
+                          <span
+                            style={{
+                              minWidth: 148,
+                              maxWidth: 148,
+                              fontSize: 14,
+                              color: "#202124",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {email.sender}
+                          </span>
+                          <div
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              flexDirection: "column",
+                              gap: 3,
+                              overflow: "hidden",
+                              minWidth: 0,
+                            }}
+                          >
+                            {/* Subject + preview line */}
+                            <div
                               style={{
-                                fontSize: 12,
-                                color: "#5f6368",
-                                minWidth: 52,
-                                textAlign: "right",
-                                fontWeight: email.unread ? 700 : 400,
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 6,
+                                overflow: "hidden",
                               }}
                             >
-                              {email.time}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  );
-                  })}
+                              <span
+                                style={{
+                                  fontSize: 14,
+                                  color: "#202124",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {email.subject}
+                              </span>
+                              <span
+                                style={{
+                                  color: "#ccc",
+                                  fontSize: 12,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                —
+                              </span>
+                              <span
+                                style={{
+                                  fontSize: 14,
+                                  color: "#5f6368",
+                                  whiteSpace: "nowrap",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                }}
+                              >
+                                {email.preview}
+                              </span>
+                            </div>
+
+                            {/* Attachment chips */}
+                            {email.attachments?.length > 0 && (
+                              <div
+                                style={{
+                                  display: "flex",
+                                  gap: 6,
+                                  flexWrap: "wrap",
+                                }}
+                              >
+                                {email.attachments.slice(0, 3).map((att, i) => {
+                                  const isPdf =
+                                    att.contentType === "application/pdf" ||
+                                    att.filename
+                                      ?.toLowerCase()
+                                      .endsWith(".pdf");
+                                  const isImage =
+                                    att.contentType?.startsWith("image/");
+                                  const Icon = isPdf
+                                    ? MdPictureAsPdf
+                                    : isImage
+                                      ? MdImage
+                                      : MdAttachFile;
+                                  return (
+                                    <div
+                                      key={i}
+                                      style={{
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: 4,
+                                        borderRadius: 12,
+                                        padding: "3px 10px 3px 7px",
+                                        fontSize: 12,
+                                        fontWeight: 500,
+                                        maxWidth: 180,
+                                        overflow: "hidden",
+                                        flexShrink: 0,
+                                        background: "#f1f3f4",
+                                        color: "#444746",
+                                      }}
+                                    >
+                                      <Icon
+                                        size={15}
+                                        style={{
+                                          flexShrink: 0,
+                                          color: isPdf ? "#c5221f" : "#5f6368",
+                                        }}
+                                      />
+                                      <span
+                                        style={{
+                                          overflow: "hidden",
+                                          textOverflow: "ellipsis",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        {att.filename}
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                                {email.attachments.length > 3 && (
+                                  <div
+                                    style={{
+                                      borderRadius: 12,
+                                      padding: "3px 9px",
+                                      background: "#f1f3f4",
+                                      fontSize: 12,
+                                      color: "#444746",
+                                      fontWeight: 500,
+                                      flexShrink: 0,
+                                    }}
+                                  >
+                                    +{email.attachments.length - 3}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 2,
+                              flexShrink: 0,
+                              minWidth: 190,
+                              justifyContent: "flex-end",
+                            }}
+                          >
+                            {isHovered ? (
+                              /* Hover action buttons */
+                              <>
+                                {/* Unsubscribe — text only */}
+                                <button
+                                  title="Unsubscribe"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setUnsubscribeTarget({
+                                      id: email.id,
+                                      sender: email.sender,
+                                    });
+                                  }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  style={{
+                                    background: "none",
+                                    border: "0.5px solid #c5c5c5",
+                                    borderRadius: 4,
+                                    cursor: "pointer",
+                                    color: "#444746",
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    padding: "2px 8px",
+                                    marginRight: 4,
+                                    whiteSpace: "nowrap",
+                                    lineHeight: "20px",
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.background =
+                                      "#f1f3f4";
+                                    e.currentTarget.style.borderColor =
+                                      "#444746";
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.background = "none";
+                                    e.currentTarget.style.borderColor =
+                                      "#c5c5c5";
+                                  }}
+                                >
+                                  Unsubscribe
+                                </button>
+
+                                {/* Icon action buttons */}
+                                {[
+                                  {
+                                    Icon: MdArchive,
+                                    title: "Archive",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) =>
+                                        list.filter((em) => em.id !== email.id),
+                                      );
+                                      await fetch(
+                                        `/emails/${email.id}/archive`,
+                                        { method: "POST" },
+                                      );
+                                    },
+                                  },
+                                  {
+                                    Icon: MdDelete,
+                                    title: "Delete",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) =>
+                                        list.filter((em) => em.id !== email.id),
+                                      );
+                                      await fetch(`/emails/${email.id}/trash`, {
+                                        method: "POST",
+                                      });
+                                    },
+                                  },
+                                  {
+                                    Icon: MdMarkEmailUnread,
+                                    title: "Mark as unread",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) =>
+                                        list.map((em) =>
+                                          em.id === email.id
+                                            ? { ...em, unread: true }
+                                            : em,
+                                        ),
+                                      );
+                                      await fetch(
+                                        `/emails/${email.id}/mark-unread`,
+                                        { method: "POST" },
+                                      );
+                                    },
+                                  },
+                                  {
+                                    Icon: MdAccessTime,
+                                    title: "Snooze",
+                                    action: (e) => {
+                                      e.stopPropagation();
+                                    },
+                                  },
+                                ].map(({ Icon, title, action }) => (
+                                  <button
+                                    key={title}
+                                    title={title}
+                                    onClick={action}
+                                    onMouseDown={(e) => e.stopPropagation()}
+                                    style={{
+                                      background: "none",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      color: "#5f6368",
+                                      width: 28,
+                                      height: 28,
+                                      borderRadius: "50%",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      flexShrink: 0,
+                                    }}
+                                    onMouseEnter={(e) => {
+                                      e.stopPropagation();
+                                      e.currentTarget.style.background =
+                                        "rgba(0,0,0,0.08)";
+                                    }}
+                                    onMouseLeave={(e) =>
+                                      (e.currentTarget.style.background =
+                                        "none")
+                                    }
+                                  >
+                                    <Icon size={16} />
+                                  </button>
+                                ))}
+                              </>
+                            ) : (
+                              /* Normal: label chip + time */
+                              <>
+                                {email.label && email.label !== "inbox" && (
+                                  <span
+                                    style={{
+                                      fontSize: 11,
+                                      padding: "2px 7px",
+                                      borderRadius: 4,
+                                      fontWeight: 500,
+                                      background: LABEL_STYLES[email.label]?.bg,
+                                      color: LABEL_STYLES[email.label]?.color,
+                                    }}
+                                  >
+                                    {email.label.charAt(0).toUpperCase() +
+                                      email.label.slice(1)}
+                                  </span>
+                                )}
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    color: "#5f6368",
+                                    minWidth: 52,
+                                    textAlign: "right",
+                                    fontWeight: email.unread ? 700 : 400,
+                                  }}
+                                >
+                                  {email.time}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
           </div>
         </div>
       </div>
@@ -1977,7 +2700,12 @@ export default function GmailUI() {
           {/* Backdrop */}
           <div
             onClick={() => !unsubscribing && setUnsubscribeTarget(null)}
-            style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 300 }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.4)",
+              zIndex: 300,
+            }}
           />
           <div
             style={{
@@ -1993,13 +2721,30 @@ export default function GmailUI() {
               padding: "28px 28px 20px",
             }}
           >
-            <div style={{ fontSize: 18, fontWeight: 500, color: "#202124", marginBottom: 12 }}>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 500,
+                color: "#202124",
+                marginBottom: 12,
+              }}
+            >
               Unsubscribe from {unsubscribeTarget.sender}?
             </div>
-            <div style={{ fontSize: 14, color: "#5f6368", lineHeight: 1.6, marginBottom: 24 }}>
-              {unsubscribeTarget.sender} will be unsubscribed and the message will be moved to Spam.
+            <div
+              style={{
+                fontSize: 14,
+                color: "#5f6368",
+                lineHeight: 1.6,
+                marginBottom: 24,
+              }}
+            >
+              {unsubscribeTarget.sender} will be unsubscribed and the message
+              will be moved to Spam.
             </div>
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <div
+              style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}
+            >
               <button
                 onClick={() => setUnsubscribeTarget(null)}
                 disabled={unsubscribing}
@@ -2014,8 +2759,13 @@ export default function GmailUI() {
                   color: "#1a73e8",
                   opacity: unsubscribing ? 0.5 : 1,
                 }}
-                onMouseEnter={(e) => { if (!unsubscribing) e.currentTarget.style.background = "#e8f0fe"; }}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                onMouseEnter={(e) => {
+                  if (!unsubscribing)
+                    e.currentTarget.style.background = "#e8f0fe";
+                }}
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "none")
+                }
               >
                 Cancel
               </button>
