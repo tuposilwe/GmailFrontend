@@ -2373,23 +2373,46 @@ export default function GmailUI() {
       ? setCheckedIds(new Set())
       : setCheckedIds(new Set(filteredEmails.map((e) => e.id)));
 
+  const folderQS = activeNav === "Sent" ? "?folder=sent" : "";
+
   const markCheckedRead = () => {
+    const ids = [...checkedIds];
     patchList((list) =>
       list.map((em) => (checkedIds.has(em.id) ? { ...em, unread: false } : em)),
     );
     setCheckedIds(new Set());
+    ids.forEach((id) =>
+      fetch(`/emails/${id}/mark-read${folderQS}`, { method: "POST" }).catch(() => {}),
+    );
   };
 
   const markCheckedUnread = () => {
+    const ids = [...checkedIds];
     patchList((list) =>
       list.map((em) => (checkedIds.has(em.id) ? { ...em, unread: true } : em)),
     );
     setCheckedIds(new Set());
+    ids.forEach((id) =>
+      fetch(`/emails/${id}/mark-unread${folderQS}`, { method: "POST" }).catch(() => {}),
+    );
+  };
+
+  const archiveChecked = () => {
+    const ids = [...checkedIds];
+    patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
+    setCheckedIds(new Set());
+    ids.forEach((id) =>
+      fetch(`/emails/${id}/archive${folderQS}`, { method: "POST" }).catch(() => {}),
+    );
   };
 
   const deleteChecked = () => {
+    const ids = [...checkedIds];
     patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
     setCheckedIds(new Set());
+    ids.forEach((id) =>
+      fetch(`/emails/${id}/trash${folderQS}`, { method: "POST" }).catch(() => {}),
+    );
   };
 
   const refreshEmails = async () => {
@@ -3051,7 +3074,7 @@ export default function GmailUI() {
                           {
                             label: "Archive",
                             Icon: MdArchive,
-                            action: deleteChecked,
+                            action: archiveChecked,
                           },
                           {
                             label: "Delete",
