@@ -1315,7 +1315,7 @@ function EmailDetail({
   totalEmails,
   folder,
 }) {
-  const folderParam = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : "";
+  const folderParam = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : "";
   const { data: detail, isLoading: loadingDetail } = useQuery({
     queryKey: ["email", email.id, folder],
     queryFn: () => fetch(`/emails/${email.id}${folderParam}`).then((r) => r.json()),
@@ -2173,6 +2173,7 @@ async function fetchEmailList(nav, page) {
   if (nav === "Starred") url = "/emails/starred";
   else if (nav === "Sent")   url = `/emails/sent?page=${page}`;
   else if (nav === "Drafts") url = `/emails/drafts?page=${page}`;
+  else if (nav === "Trash")  url = `/emails/trash?page=${page}`;
   else url = `/emails?page=${page}`;
 
   const res  = await fetch(url);
@@ -2351,8 +2352,8 @@ export default function GmailUI() {
 
   // Prefetch email detail on hover so it's ready before you click
   const prefetchDetail = (id) => {
-    const folder = activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : "inbox";
-    const param  = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : "";
+    const folder = activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : "inbox";
+    const param  = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : "";
     queryClient.prefetchQuery({
       queryKey: ["email", id, folder],
       queryFn: () => fetch(`/emails/${id}${param}`).then((r) => r.json()),
@@ -2416,7 +2417,7 @@ export default function GmailUI() {
       list.map((em) => {
         if (em.id !== id) return em;
         if (em.unread) {
-          const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
+          const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : "";
           fetch(`/emails/${id}/mark-read${fp}`, { method: "POST" }).catch(() => {});
         }
         return { ...em, unread: false };
@@ -2456,7 +2457,7 @@ export default function GmailUI() {
       ? setCheckedIds(new Set())
       : setCheckedIds(new Set(filteredEmails.map((e) => e.id)));
 
-  const folderQS = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
+  const folderQS = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : "";
 
   const markCheckedRead = () => {
     const ids = [...checkedIds];
@@ -2495,6 +2496,24 @@ export default function GmailUI() {
     setCheckedIds(new Set());
     ids.forEach((id) =>
       fetch(`/emails/${id}/trash${folderQS}`, { method: "POST" }).catch(() => {}),
+    );
+  };
+
+  const deleteForeverChecked = () => {
+    const ids = [...checkedIds];
+    patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
+    setCheckedIds(new Set());
+    ids.forEach((id) =>
+      fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}),
+    );
+  };
+
+  const restoreChecked = () => {
+    const ids = [...checkedIds];
+    patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
+    setCheckedIds(new Set());
+    ids.forEach((id) =>
+      fetch(`/emails/${id}/restore`, { method: "POST" }).catch(() => {}),
     );
   };
 
@@ -2928,7 +2947,7 @@ export default function GmailUI() {
                   }}
                   emailPosition={emailPosition}
                   totalEmails={totalEmails}
-                  folder={activeNav === "Sent" ? "sent" : "inbox"}
+                  folder={activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : "inbox"}
                   onPrev={
                     emailIdx > 0
                       ? () => setSelectedId(paginatedEmails[emailIdx - 1].id)
@@ -3152,7 +3171,18 @@ export default function GmailUI() {
                         >
                           {checkedIds.size} selected
                         </span>
-                        {[
+                        {(activeNav === "Trash" ? [
+                          {
+                            label: "Delete forever",
+                            Icon: MdDelete,
+                            action: deleteForeverChecked,
+                          },
+                          {
+                            label: "Restore to Inbox",
+                            Icon: MdUndo,
+                            action: restoreChecked,
+                          },
+                        ] : [
                           {
                             label: "Archive",
                             Icon: MdArchive,
@@ -3173,7 +3203,7 @@ export default function GmailUI() {
                             Icon: MdMarkEmailUnread,
                             action: markCheckedUnread,
                           },
-                        ].map(({ label, Icon, action }) => (
+                        ]).map(({ label, Icon, action }) => (
                           <button
                             key={label}
                             onClick={action}
@@ -3438,6 +3468,26 @@ export default function GmailUI() {
                                   : "No emails found"}
                       </div>
                     )}
+                    {activeNav === "Trash" && filteredEmails.length > 0 && (
+                      <div style={{ padding: "8px 16px", fontSize: 13, color: "#5f6368", background: "#f6f8fc", borderBottom: "1px solid #e0e0e0" }}>
+                        Messages that have been in Trash more than 30 days will be automatically deleted.&nbsp;
+                        <span
+                          style={{ color: "#1a73e8", cursor: "pointer" }}
+                          onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+                          onClick={() => {
+                            const allIds = new Set(filteredEmails.map((e) => e.id));
+                            patchList(() => []);
+                            setCheckedIds(new Set());
+                            allIds.forEach((id) =>
+                              fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}),
+                            );
+                          }}
+                        >
+                          Empty Trash now
+                        </span>
+                      </div>
+                    )}
                     {paginatedEmails.map((email) => {
                       const isChecked = checkedIds.has(email.id);
                       const isHovered = hoveredId === email.id;
@@ -3699,7 +3749,8 @@ export default function GmailUI() {
                             {isHovered ? (
                               /* Hover action buttons */
                               <>
-                                {/* Unsubscribe — text only */}
+                                {/* Unsubscribe — text only, hidden in Trash */}
+                                {activeNav !== "Trash" && (
                                 <button
                                   title="Unsubscribe"
                                   onClick={(e) => {
@@ -3737,9 +3788,29 @@ export default function GmailUI() {
                                 >
                                   Unsubscribe
                                 </button>
+                                )}
 
                                 {/* Icon action buttons */}
-                                {[
+                                {(activeNav === "Trash" ? [
+                                  {
+                                    Icon: MdDelete,
+                                    title: "Delete forever",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) => list.filter((em) => em.id !== email.id));
+                                      await fetch(`/emails/${email.id}/delete-forever`, { method: "POST" });
+                                    },
+                                  },
+                                  {
+                                    Icon: MdUndo,
+                                    title: "Restore to Inbox",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) => list.filter((em) => em.id !== email.id));
+                                      await fetch(`/emails/${email.id}/restore`, { method: "POST" });
+                                    },
+                                  },
+                                ] : [
                                   {
                                     Icon: MdArchive,
                                     title: "Archive",
@@ -3787,7 +3858,7 @@ export default function GmailUI() {
                                       e.stopPropagation();
                                     },
                                   },
-                                ].map(({ Icon, title, action }) => (
+                                ]).map(({ Icon, title, action }) => (
                                   <button
                                     key={title}
                                     title={title}
