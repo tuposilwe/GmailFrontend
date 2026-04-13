@@ -2173,7 +2173,8 @@ async function fetchEmailList(nav, page) {
   if (nav === "Starred") url = "/emails/starred";
   else if (nav === "Sent")   url = `/emails/sent?page=${page}`;
   else if (nav === "Drafts") url = `/emails/drafts?page=${page}`;
-  else if (nav === "Trash")  url = `/emails/trash?page=${page}`;
+  else if (nav === "Trash")   url = `/emails/trash?page=${page}`;
+  else if (nav === "Snoozed") url = `/emails/snoozed`;
   else url = `/emails?page=${page}`;
 
   const res  = await fetch(url);
@@ -2186,7 +2187,7 @@ export default function GmailUI() {
   const queryClient = useQueryClient();
 
   // ── Restore state from URL hash on first load ────────────────────────────────
-  const VALID_FOLDERS = new Set(["Inbox","Starred","Sent","Drafts","Trash","Spam","All Mail"]);
+  const VALID_FOLDERS = new Set(["Inbox","Starred","Snoozed","Sent","Drafts","Trash","Spam","All Mail"]);
   const parseHash = () => {
     const [folder, rawId] = window.location.hash.slice(1).split("/");
     return {
@@ -2204,6 +2205,7 @@ export default function GmailUI() {
   const [refreshing, setRefreshing] = useState(false);
   const [unsubscribeTarget, setUnsubscribeTarget] = useState(null);
   const [unsubscribing, setUnsubscribing] = useState(false);
+  const [snoozeTarget, setSnoozeTarget] = useState(null); // { id, folder }
   const [currentPage, setCurrentPage] = useState(1);
   const [activeNav, setActiveNav] = useState(_initFolder);
   const [showCompose, setShowCompose] = useState(false);
@@ -2528,6 +2530,52 @@ export default function GmailUI() {
   const markAllRead = () => {
     patchList((list) => list.map((em) => ({ ...em, unread: false })));
     setShowMoreMenu(false);
+  };
+
+  // ── Snooze helpers ────────────────────────────────────────────────────────
+  const getSnoozeOptions = () => {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, "0");
+    const fmt = (d) => {
+      const days = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+      const isToday = d.toDateString() === now.toDateString();
+      const isTomorrow = d.toDateString() === new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toDateString();
+      const label = isToday ? "Today" : isTomorrow ? "Tomorrow" : days[d.getDay()];
+      return `${label}, ${pad(d.getHours())}:${pad(d.getMinutes())} ${d.getHours() < 12 ? "AM" : "PM"}`;
+    };
+
+    const laterToday = new Date(now);
+    laterToday.setHours(now.getHours() + 3, 0, 0, 0);
+
+    const tomorrowMorning = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 8, 0, 0, 0);
+
+    const daysUntilSat = (6 - now.getDay() + 7) % 7 || 7;
+    const thisWeekend  = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilSat, 8, 0, 0, 0);
+
+    const daysUntilMon = (1 - now.getDay() + 7) % 7 || 7;
+    const nextWeek     = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysUntilMon, 8, 0, 0, 0);
+
+    const opts = [
+      { label: "Later today",       time: laterToday,     display: fmt(laterToday)     },
+      { label: "Tomorrow morning",  time: tomorrowMorning,display: fmt(tomorrowMorning) },
+    ];
+    if (thisWeekend > tomorrowMorning) {
+      opts.push({ label: "This weekend", time: thisWeekend, display: fmt(thisWeekend) });
+    }
+    opts.push({ label: "Next week", time: nextWeek, display: fmt(nextWeek) });
+    return opts;
+  };
+
+  const confirmSnooze = async (snoozeUntil) => {
+    if (!snoozeTarget) return;
+    const folder = snoozeTarget.folder || (activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : "inbox");
+    await fetch(`/emails/${snoozeTarget.id}/snooze`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snooze_until: snoozeUntil.toISOString(), folder }),
+    }).catch(() => {});
+    patchList((list) => list.filter((em) => em.id !== snoozeTarget.id));
+    setSnoozeTarget(null);
   };
 
   const confirmUnsubscribe = async () => {
@@ -2947,7 +2995,7 @@ export default function GmailUI() {
                   }}
                   emailPosition={emailPosition}
                   totalEmails={totalEmails}
-                  folder={activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : "inbox"}
+                  folder={activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : activeNav === "Snoozed" ? (selectedEmail?.sourceFolder || "inbox") : "inbox"}
                   onPrev={
                     emailIdx > 0
                       ? () => setSelectedId(paginatedEmails[emailIdx - 1].id)
@@ -3856,6 +3904,7 @@ export default function GmailUI() {
                                     title: "Snooze",
                                     action: (e) => {
                                       e.stopPropagation();
+                                      setSnoozeTarget({ id: email.id, folder: email.sourceFolder || (activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : "inbox") });
                                     },
                                   },
                                 ]).map(({ Icon, title, action }) => (
@@ -3907,6 +3956,12 @@ export default function GmailUI() {
                                   >
                                     {email.label.charAt(0).toUpperCase() +
                                       email.label.slice(1)}
+                                  </span>
+                                )}
+                                {email.snoozeUntil && (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 2, color: "#f29900", fontSize: 12, marginRight: 4, whiteSpace: "nowrap" }}>
+                                    <MdAccessTime size={13} />
+                                    {new Date(email.snoozeUntil).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                                   </span>
                                 )}
                                 <span
@@ -4108,6 +4163,38 @@ export default function GmailUI() {
               >
                 {unsubscribing ? "Unsubscribing…" : "Unsubscribe"}
               </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Snooze time picker */}
+      {snoozeTarget && (
+        <>
+          <div onClick={() => setSnoozeTarget(null)} style={{ position: "fixed", inset: 0, zIndex: 1000 }} />
+          <div style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)", background: "#fff", borderRadius: 8, boxShadow: "0 8px 32px rgba(0,0,0,0.22)", zIndex: 1001, minWidth: 280, overflow: "hidden" }}>
+            <div style={{ padding: "16px 20px 8px", fontSize: 15, fontWeight: 500, color: "#202124" }}>Snooze until…</div>
+            {getSnoozeOptions().map((opt) => (
+              <div
+                key={opt.label}
+                onClick={() => confirmSnooze(opt.time)}
+                style={{ padding: "10px 20px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, color: "#202124" }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "#f1f3f4"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+              >
+                <span>{opt.label}</span>
+                <span style={{ color: "#5f6368", fontSize: 13 }}>{opt.display}</span>
+              </div>
+            ))}
+            <div style={{ padding: "8px 20px 14px" }}>
+              <div
+                onClick={() => setSnoozeTarget(null)}
+                style={{ fontSize: 13, color: "#1a73e8", cursor: "pointer", textAlign: "center", padding: "6px 0" }}
+                onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+              >
+                Cancel
+              </div>
             </div>
           </div>
         </>
