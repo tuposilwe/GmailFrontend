@@ -2795,7 +2795,7 @@ export default function GmailUI() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: isExpanded ? "flex-start" : "center",
-                gap: 12,
+                gap: isExpanded ? 12 : 0,
                 color: "#001d35",
                 transition:
                   "width 0.2s cubic-bezier(0.4,0,0.2,1), padding 0.2s",
@@ -2807,7 +2807,8 @@ export default function GmailUI() {
               <span
                 style={{
                   opacity: isExpanded ? 1 : 0,
-                  transition: "opacity 0.1s",
+                  maxWidth: isExpanded ? "none" : 0,
+                  transition: "opacity 0.1s, max-width 0.2s cubic-bezier(0.4,0,0.2,1)",
                   overflow: "hidden",
                 }}
               >
