@@ -65,7 +65,7 @@ const LABEL_STYLES = {
 };
 
 const NAV_ITEMS = [
-  { icon: MdInbox, label: "Inbox", badge: 5 },
+  { icon: MdInbox, label: "Inbox" },
   { icon: MdStar, label: "Starred" },
   { icon: MdSchedule, label: "Snoozed" },
   { icon: MdSend, label: "Sent" },
@@ -2269,6 +2269,14 @@ export default function GmailUI() {
   const emails = emailData?.emails ?? [];
   const totalEmails = emailData?.total ?? 0;
 
+  // Always keep a live unread count for Inbox regardless of which folder is active
+  const inboxData = useQuery({
+    queryKey: emailListKey("Inbox", 1),
+    queryFn: () => fetchEmailList("Inbox", 1),
+    staleTime: 60_000,
+  });
+  const inboxUnreadCount = (inboxData.data?.emails ?? []).filter((e) => e.unread).length;
+
   // Sync URL hash whenever folder or open email changes
   useEffect(() => {
     const hash = selectedId ? `${activeNav}/${selectedId}` : activeNav;
@@ -2702,7 +2710,7 @@ export default function GmailUI() {
               >
                 {item.label}
               </span>
-              {item.badge && isExpanded && (
+              {item.label === "Inbox" && inboxUnreadCount > 0 && isExpanded && (
                 <span
                   style={{
                     fontSize: 12,
@@ -2710,7 +2718,7 @@ export default function GmailUI() {
                     color: activeNav === item.label ? "#001d35" : "#202124",
                   }}
                 >
-                  {item.badge}
+                  {inboxUnreadCount}
                 </span>
               )}
               {item.badge && !isExpanded && (
