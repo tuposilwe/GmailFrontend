@@ -24,6 +24,7 @@ import {
   MdMoreVert,
   MdRefresh,
   MdKeyboardArrowDown,
+  MdKeyboardArrowUp,
   MdKeyboardArrowLeft,
   MdKeyboardArrowRight,
   MdDownload,
@@ -70,6 +71,10 @@ const NAV_ITEMS = [
   { icon: MdSchedule, label: "Snoozed" },
   { icon: MdSend, label: "Sent" },
   { icon: MdDrafts, label: "Drafts" },
+];
+
+const NAV_ITEMS_MORE = [
+  { icon: MdReport, label: "Spam" },
   { icon: MdDelete, label: "Trash" },
 ];
 
@@ -2194,6 +2199,9 @@ export default function GmailUI() {
   const [snoozeTarget, setSnoozeTarget] = useState(null); // { id, folder }
   const [currentPage, setCurrentPage] = useState(1);
   const [activeNav, setActiveNav] = useState(_initFolder);
+  const [showMoreNav, setShowMoreNav] = useState(
+    NAV_ITEMS_MORE.some(i => i.label === _initFolder)
+  );
   const [showCompose, setShowCompose] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [toast, setToast] = useState(null); // null | { message, actions: [{label,onClick}] }
@@ -2876,6 +2884,72 @@ export default function GmailUI() {
                   {item.badge}
                 </span>
               )}
+            </div>
+          ))}
+
+          {/* More / Less toggle — always at the same position, right after primary nav */}
+          <div
+            onClick={() => setShowMoreNav(v => !v)}
+            title={!isExpanded ? (showMoreNav ? "Less" : "More") : undefined}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              padding: "7px 16px 7px 26px",
+              fontSize: 14,
+              cursor: "pointer",
+              borderRadius: "0 20px 20px 0",
+              marginRight: isExpanded ? 16 : 8,
+              marginLeft: 0,
+              color: "#202124",
+              transition: "background 0.1s, margin 0.2s",
+              overflow: "hidden",
+              whiteSpace: "nowrap",
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+            onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+          >
+            {showMoreNav
+              ? <MdKeyboardArrowUp size={20} style={{ flexShrink: 0 }} />
+              : <MdKeyboardArrowDown size={20} style={{ flexShrink: 0 }} />
+            }
+            <span style={{ opacity: isExpanded ? 1 : 0, transition: "opacity 0.1s" }}>
+              {showMoreNav ? "Less" : "More"}
+            </span>
+          </div>
+
+          {/* Spam & Trash — revealed below the toggle when expanded */}
+          {showMoreNav && NAV_ITEMS_MORE.map((item) => (
+            <div
+              key={item.label}
+              onClick={() => {
+                setActiveNav(item.label);
+                setCurrentPage(1);
+                setSelectedId(null);
+              }}
+              title={!isExpanded ? item.label : undefined}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "7px 16px 7px 26px",
+                fontSize: 14,
+                cursor: "pointer",
+                borderRadius: "0 20px 20px 0",
+                marginRight: isExpanded ? 16 : 8,
+                marginLeft: 0,
+                background: activeNav === item.label ? "#c2e7ff" : "transparent",
+                color: activeNav === item.label ? "#001d35" : "#202124",
+                fontWeight: activeNav === item.label ? 600 : 400,
+                transition: "background 0.1s, margin 0.2s",
+                overflow: "hidden",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <item.icon size={20} style={{ flexShrink: 0 }} />
+              <span style={{ flex: 1, opacity: isExpanded ? 1 : 0, transition: "opacity 0.1s", overflow: "hidden" }}>
+                {item.label}
+              </span>
             </div>
           ))}
 
