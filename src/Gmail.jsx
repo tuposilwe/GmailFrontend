@@ -436,12 +436,19 @@ function ToField({ recipients, onChange, preloaded }) {
   );
 }
 
-function RichTextEditor({ onChange, fullscreen, showToolbar }) {
+function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
   const editorRef = useRef(null);
   const colorInputRef = useRef(null);
   const [formats, setFormats] = useState({});
   const [fontSize, setFontSize] = useState("3");
   const [fontName, setFontName] = useState("Arial, sans-serif");
+
+  useEffect(() => {
+    if (initialHTML && editorRef.current) {
+      editorRef.current.innerHTML = initialHTML;
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const updateFormats = () => {
     setFormats({
@@ -858,14 +865,14 @@ function RichTextEditor({ onChange, fullscreen, showToolbar }) {
   );
 }
 
-function ComposeModal({ onClose, minimized, onMinimize }) {
-  const [recipients, setRecipients] = useState([]);
-  const [subject, setSubject] = useState("");
-  const [body, setBody] = useState("");
+function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinimize }) {
+  const [recipients, setRecipients] = useState(initialDraft?.recipients || []);
+  const [subject, setSubject] = useState(initialDraft?.subject || "");
+  const [body, setBody] = useState(initialDraft?.body || "");
   const [sending, setSending] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [showFormatting, setShowFormatting] = useState(false);
-  const [attachments, setAttachments] = useState([]);
+  const [attachments, setAttachments] = useState(initialDraft?.attachments || []);
   const fileInputRef = useRef(null);
   const [preloadedContacts, setPreloadedContacts] = useState([]);
 
@@ -883,33 +890,11 @@ function ComposeModal({ onClose, minimized, onMinimize }) {
     };
   }, []);
 
-  const handleSend = async () => {
-    setSending(true);
-    try {
-      const to = recipients.map((r) => r.email).join(", ");
-      const fd = new FormData();
-      fd.append("to", to);
-      fd.append("subject", subject);
-      fd.append("html", body);
-      fd.append("text", body.replace(/<[^>]*>/g, ""));
-      attachments.forEach(f => fd.append("attachments", f));
-
-      await fetch("/send-email", { method: "POST", body: fd });
-
-      // Persist recipients in SQLite for instant autocomplete next time
-      if (recipients.length > 0) {
-        fetch("/contacts", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(recipients),
-        }).catch(() => {});
-      }
-      onClose();
-    } catch (err) {
-      console.error("Failed to send email:", err);
-    } finally {
-      setSending(false);
-    }
+  const handleSend = () => {
+    // Hand the draft to the parent — the parent delays the actual send
+    // for 5 s so the user can click Undo.
+    onPendingSend({ recipients, subject, body, attachments });
+    onClose();
   };
 
   const handleMinimize = () => {
@@ -1125,7 +1110,7 @@ function ComposeModal({ onClose, minimized, onMinimize }) {
               />
             </div>
 
-            <RichTextEditor onChange={setBody} fullscreen={fullscreen} showToolbar={showFormatting} />
+            <RichTextEditor onChange={setBody} fullscreen={fullscreen} showToolbar={showFormatting} initialHTML={initialDraft?.body} />
 
             {/* Attachment chips */}
             {attachments.length > 0 && (
@@ -2180,6 +2165,81 @@ export default function GmailUI() {
   const [activeNav, setActiveNav] = useState("Inbox");
   const [showCompose, setShowCompose] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
+  const [toast, setToast] = useState(null); // null | { message, actions: [{label,onClick}] }
+  const toastTimer = useRef(null);
+  const pendingOpenLatestSent = useRef(false);
+
+  // ── Undo-send state ──────────────────────────────────────────────────────────
+  const UNDO_DELAY = 5000; // ms — same as Gmail default
+  const [composeDraft, setComposeDraft] = useState(null);
+  const [composeKey, setComposeKey] = useState(0);
+  const undoTimer = useRef(null);
+
+  const executeSend = async (draft) => {
+    const fd = new FormData();
+    fd.append("to", draft.recipients.map((r) => r.email).join(", "));
+    fd.append("subject", draft.subject);
+    fd.append("html", draft.body);
+    fd.append("text", draft.body.replace(/<[^>]*>/g, ""));
+    draft.attachments.forEach((f) => fd.append("attachments", f));
+    try {
+      await fetch("/send-email", { method: "POST", body: fd });
+      if (draft.recipients.length > 0) {
+        fetch("/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(draft.recipients),
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.error("Failed to send email:", err);
+    }
+  };
+
+  const handlePendingSend = (draft) => {
+    clearTimeout(undoTimer.current);
+
+    const doUndo = () => {
+      clearTimeout(undoTimer.current);
+      setToast(null);
+      setComposeDraft(draft);
+      setComposeKey((k) => k + 1);
+      setShowCompose(true);
+      setComposeMinimized(false);
+    };
+
+    const doView = () => {
+      clearTimeout(undoTimer.current);
+      setToast(null);
+      executeSend(draft).then(() => {
+        pendingOpenLatestSent.current = true;
+        setSelectedId(null);
+        setCurrentPage(1);
+        setActiveNav("Sent");
+        queryClient.invalidateQueries({ queryKey: ["emails", "Sent"] });
+      });
+    };
+
+    setToast({
+      message: "Message sent",
+      actions: [
+        { label: "Undo", onClick: doUndo },
+        { label: "View message", onClick: doView },
+      ],
+    });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), UNDO_DELAY);
+
+    undoTimer.current = setTimeout(() => {
+      executeSend(draft);
+    }, UNDO_DELAY);
+  };
+
+  const showToast = (message, actions = []) => {
+    clearTimeout(toastTimer.current);
+    setToast({ message, actions: Array.isArray(actions) ? actions : [actions] });
+    toastTimer.current = setTimeout(() => setToast(null), 5000);
+  };
   const [search, setSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -2195,6 +2255,14 @@ export default function GmailUI() {
 
   const emails = emailData?.emails ?? [];
   const totalEmails = emailData?.total ?? 0;
+
+  // Auto-open the most-recent Sent email after "View message" is clicked
+  useEffect(() => {
+    if (pendingOpenLatestSent.current && activeNav === "Sent" && emails.length > 0) {
+      pendingOpenLatestSent.current = false;
+      setSelectedId(emails[0].id);
+    }
+  }, [emails, activeNav]);
 
   // Helper: patch list cache in-place (for optimistic updates)
   const patchList = (updater) =>
@@ -3654,14 +3722,79 @@ export default function GmailUI() {
       {/* Compose Modal */}
       {showCompose && (
         <ComposeModal
+          key={composeKey}
+          initialDraft={composeDraft}
           onClose={() => {
             setShowCompose(false);
             setComposeMinimized(false);
+            setComposeDraft(null);
           }}
+          onPendingSend={handlePendingSend}
           minimized={composeMinimized}
           onMinimize={() => setComposeMinimized((m) => !m)}
         />
       )}
+
+      {/* ── Sent toast (bottom-left, Gmail-style) ── */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 24,
+          left: 24,
+          background: "#323232",
+          color: "#fff",
+          fontSize: 14,
+          padding: "10px 8px 10px 16px",
+          borderRadius: 4,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          pointerEvents: toast ? "auto" : "none",
+          opacity: toast ? 1 : 0,
+          transform: toast ? "translateY(0)" : "translateY(12px)",
+          transition: "opacity 0.18s ease, transform 0.18s ease",
+          zIndex: 9999,
+          whiteSpace: "nowrap",
+        }}
+      >
+        <span style={{ marginRight: 8 }}>{toast?.message}</span>
+        {(toast?.actions || []).map((a) => (
+          <button
+            key={a.label}
+            onClick={a.onClick}
+            style={{
+              background: "none",
+              border: "none",
+              color: "#8ab4f8",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: "pointer",
+              padding: "0 8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {a.label}
+          </button>
+        ))}
+        <button
+          onClick={() => { clearTimeout(toastTimer.current); clearTimeout(undoTimer.current); setToast(null); }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "#fff",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            padding: "4px",
+            borderRadius: "50%",
+            opacity: 0.8,
+          }}
+          aria-label="Close"
+        >
+          <MdClose size={18} />
+        </button>
+      </div>
 
       {/* Unsubscribe Confirmation Dialog */}
       {unsubscribeTarget && (
