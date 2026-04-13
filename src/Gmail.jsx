@@ -2893,10 +2893,10 @@ export default function GmailUI() {
                       <div
                         onClick={toggleSelectAll}
                         style={{
-                          width: 18,
-                          height: 18,
-                          border: `2px solid ${allChecked ? "#1a73e8" : someChecked ? "#1a73e8" : "#5f6368"}`,
-                          borderRadius: 3,
+                          width: 14,
+                          height: 14,
+                          border: `1.5px solid ${allChecked ? "#1a73e8" : someChecked ? "#1a73e8" : "#5f6368"}`,
+                          borderRadius: 2,
                           background: allChecked ? "#1a73e8" : "transparent",
                           cursor: "pointer",
                           flexShrink: 0,
@@ -2910,7 +2910,7 @@ export default function GmailUI() {
                           <span
                             style={{
                               color: "#fff",
-                              fontSize: 11,
+                              fontSize: 9,
                               lineHeight: 1,
                             }}
                           >
@@ -2921,7 +2921,7 @@ export default function GmailUI() {
                           <span
                             style={{
                               color: "#1a73e8",
-                              fontSize: 14,
+                              fontSize: 11,
                               lineHeight: 1,
                               position: "absolute",
                             }}
@@ -3413,10 +3413,10 @@ export default function GmailUI() {
                             {showCheckbox ? (
                               <div
                                 style={{
-                                  width: 18,
-                                  height: 18,
-                                  border: `2px solid ${isChecked ? "#1a73e8" : "#5f6368"}`,
-                                  borderRadius: 3,
+                                  width: 14,
+                                  height: 14,
+                                  border: `1.5px solid ${isChecked ? "#1a73e8" : "#5f6368"}`,
+                                  borderRadius: 2,
                                   background: isChecked ? "#1a73e8" : "#fff",
                                   display: "flex",
                                   alignItems: "center",
@@ -3428,7 +3428,7 @@ export default function GmailUI() {
                                   <span
                                     style={{
                                       color: "#fff",
-                                      fontSize: 11,
+                                      fontSize: 9,
                                       lineHeight: 1,
                                     }}
                                   >
