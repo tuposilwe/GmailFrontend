@@ -2332,6 +2332,13 @@ export default function GmailUI() {
   });
   const draftsCount = draftsData.data?.total ?? 0;
 
+  const { data: storageData } = useQuery({
+    queryKey: ["storage"],
+    queryFn: () => fetch("/storage").then((r) => r.json()),
+    staleTime: 15 * 60_000,
+  });
+  const storageInfo = storageData?.percent != null ? storageData : null;
+
   // Sync URL hash whenever folder or open email changes
   useEffect(() => {
     const hash = selectedId ? `${activeNav}/${selectedId}` : activeNav;
@@ -2944,6 +2951,7 @@ export default function GmailUI() {
               </div>
             ))}
           </div>
+
         </div>
 
         {/* Fixed spacer when collapsed — main content never moves regardless of hover */}
@@ -3986,6 +3994,28 @@ export default function GmailUI() {
               );
             })()}
           </div>
+
+          {/* Storage bar — bottom of email list, visible on every page */}
+          {storageInfo && (
+            <div style={{ padding: "10px 16px 12px", borderTop: "1px solid #e0e0e0", background: "#fff" }}>
+              <div style={{ maxWidth: 340 }}>
+                <div style={{ height: 4, borderRadius: 2, background: "#e0e0e0", overflow: "hidden", marginBottom: 5 }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${storageInfo.percent}%`,
+                      borderRadius: 2,
+                      background: storageInfo.percent >= 90 ? "#d93025" : storageInfo.percent >= 75 ? "#f29900" : "#1a73e8",
+                      transition: "width 0.5s ease",
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: 12, color: "#5f6368" }}>
+                  {storageInfo.usedFmt} ({storageInfo.percent}%) of {storageInfo.limitFmt} used
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
