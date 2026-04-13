@@ -1315,7 +1315,7 @@ function EmailDetail({
   totalEmails,
   folder,
 }) {
-  const folderParam = folder === "sent" ? "?folder=sent" : "";
+  const folderParam = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : "";
   const { data: detail, isLoading: loadingDetail } = useQuery({
     queryKey: ["email", email.id, folder],
     queryFn: () => fetch(`/emails/${email.id}${folderParam}`).then((r) => r.json()),
@@ -2351,8 +2351,8 @@ export default function GmailUI() {
 
   // Prefetch email detail on hover so it's ready before you click
   const prefetchDetail = (id) => {
-    const folder = activeNav === "Sent" ? "sent" : "inbox";
-    const param  = folder === "sent" ? "?folder=sent" : "";
+    const folder = activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : "inbox";
+    const param  = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : "";
     queryClient.prefetchQuery({
       queryKey: ["email", id, folder],
       queryFn: () => fetch(`/emails/${id}${param}`).then((r) => r.json()),
@@ -2416,7 +2416,7 @@ export default function GmailUI() {
       list.map((em) => {
         if (em.id !== id) return em;
         if (em.unread) {
-          const fp = activeNav === "Sent" ? "?folder=sent" : "";
+          const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
           fetch(`/emails/${id}/mark-read${fp}`, { method: "POST" }).catch(() => {});
         }
         return { ...em, unread: false };
@@ -2456,7 +2456,7 @@ export default function GmailUI() {
       ? setCheckedIds(new Set())
       : setCheckedIds(new Set(filteredEmails.map((e) => e.id)));
 
-  const folderQS = activeNav === "Sent" ? "?folder=sent" : "";
+  const folderQS = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
 
   const markCheckedRead = () => {
     const ids = [...checkedIds];
@@ -3748,7 +3748,7 @@ export default function GmailUI() {
                                       patchList((list) =>
                                         list.filter((em) => em.id !== email.id),
                                       );
-                                      const fp = activeNav === "Sent" ? "?folder=sent" : "";
+                                      const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
                                       await fetch(`/emails/${email.id}/archive${fp}`, { method: "POST" });
                                     },
                                   },
@@ -3760,7 +3760,7 @@ export default function GmailUI() {
                                       patchList((list) =>
                                         list.filter((em) => em.id !== email.id),
                                       );
-                                      const fp = activeNav === "Sent" ? "?folder=sent" : "";
+                                      const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
                                       await fetch(`/emails/${email.id}/trash${fp}`, { method: "POST" });
                                     },
                                   },
@@ -3776,7 +3776,7 @@ export default function GmailUI() {
                                             : em,
                                         ),
                                       );
-                                      const fp = activeNav === "Sent" ? "?folder=sent" : "";
+                                      const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
                                       await fetch(`/emails/${email.id}/mark-unread${fp}`, { method: "POST" });
                                     },
                                   },
