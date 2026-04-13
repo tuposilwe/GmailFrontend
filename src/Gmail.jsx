@@ -1313,7 +1313,7 @@ function EmailDetail({
   const act = async (endpoint, method = "POST") => {
     setActing(true);
     try {
-      await fetch(`/emails/${email.id}/${endpoint}`, { method });
+      await fetch(`/emails/${email.id}/${endpoint}${folderParam}`, { method });
     } catch (e) {
       console.error(e);
     } finally {
@@ -2333,7 +2333,8 @@ export default function GmailUI() {
         if (em.id !== id) return em;
         if (em.unread) {
           // Persist the read state on the IMAP server
-          fetch(`/emails/${id}/mark-read`, { method: "POST" }).catch(() => {});
+          const fp = activeNav === "Sent" ? "?folder=sent" : "";
+          fetch(`/emails/${id}/mark-read${fp}`, { method: "POST" }).catch(() => {});
         }
         return { ...em, unread: false };
       }),
@@ -3642,10 +3643,8 @@ export default function GmailUI() {
                                       patchList((list) =>
                                         list.filter((em) => em.id !== email.id),
                                       );
-                                      await fetch(
-                                        `/emails/${email.id}/archive`,
-                                        { method: "POST" },
-                                      );
+                                      const fp = activeNav === "Sent" ? "?folder=sent" : "";
+                                      await fetch(`/emails/${email.id}/archive${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -3656,9 +3655,8 @@ export default function GmailUI() {
                                       patchList((list) =>
                                         list.filter((em) => em.id !== email.id),
                                       );
-                                      await fetch(`/emails/${email.id}/trash`, {
-                                        method: "POST",
-                                      });
+                                      const fp = activeNav === "Sent" ? "?folder=sent" : "";
+                                      await fetch(`/emails/${email.id}/trash${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -3673,10 +3671,8 @@ export default function GmailUI() {
                                             : em,
                                         ),
                                       );
-                                      await fetch(
-                                        `/emails/${email.id}/mark-unread`,
-                                        { method: "POST" },
-                                      );
+                                      const fp = activeNav === "Sent" ? "?folder=sent" : "";
+                                      await fetch(`/emails/${email.id}/mark-unread${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
