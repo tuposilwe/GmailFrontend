@@ -1303,7 +1303,7 @@ function EmailDetail({
   totalEmails,
   folder,
 }) {
-  const folderParam = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : "";
+  const folderParam = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : folder === "spam" ? "?folder=spam" : "";
   const { data: detail, isLoading: loadingDetail } = useQuery({
     queryKey: ["email", email.id, folder],
     queryFn: () => fetch(`/emails/${email.id}${folderParam}`).then((r) => r.json()),
@@ -1487,9 +1487,18 @@ function EmailDetail({
         <div style={{ width: 8 }} />
 
         {/* Primary actions */}
-        {iconBtn(handleArchive, "Archive", <MdArchive size={20} />)}
-        {iconBtn(handleSpam, "Report spam", <MdReport size={20} />)}
-        {iconBtn(handleDelete, "Delete", <MdDelete size={20} />)}
+        {folder === "spam" ? (
+          <>
+            {iconBtn(async () => { await act("not-spam"); onDelete(); }, "Not spam", <MdInbox size={20} />)}
+            {iconBtn(async () => { await act("delete-forever"); onDelete(); }, "Delete forever", <MdDelete size={20} />)}
+          </>
+        ) : (
+          <>
+            {iconBtn(handleArchive, "Archive", <MdArchive size={20} />)}
+            {iconBtn(handleSpam, "Report spam", <MdReport size={20} />)}
+            {iconBtn(handleDelete, "Delete", <MdDelete size={20} />)}
+          </>
+        )}
 
         <div
           style={{
@@ -2165,6 +2174,7 @@ async function fetchEmailList(nav, page) {
   else if (nav === "Sent")   url = `/emails/sent?page=${page}`;
   else if (nav === "Drafts") url = `/emails/drafts?page=${page}`;
   else if (nav === "Trash")   url = `/emails/trash?page=${page}`;
+  else if (nav === "Spam")    url = `/emails/spam?page=${page}`;
   else if (nav === "Snoozed") url = `/emails/snoozed`;
   else url = `/emails?page=${page}`;
 
@@ -2355,8 +2365,8 @@ export default function GmailUI() {
 
   // Prefetch email detail on hover so it's ready before you click
   const prefetchDetail = (id) => {
-    const folder = activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : "inbox";
-    const param  = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : "";
+    const folder = activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : activeNav === "Spam" ? "spam" : "inbox";
+    const param  = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : folder === "spam" ? "?folder=spam" : "";
     queryClient.prefetchQuery({
       queryKey: ["email", id, folder],
       queryFn: () => fetch(`/emails/${id}${param}`).then((r) => r.json()),
@@ -2369,7 +2379,7 @@ export default function GmailUI() {
   const selectedEmail =
     emails.find((e) => e.id === selectedId) ||
     (selectedId
-      ? { id: selectedId, label: activeNav === "Sent" ? "sent" : "inbox" }
+      ? { id: selectedId, label: activeNav === "Sent" ? "sent" : activeNav === "Spam" ? "spam" : "inbox" }
       : null);
 
   const toggleStar = (id, e) => {
@@ -2420,7 +2430,7 @@ export default function GmailUI() {
       list.map((em) => {
         if (em.id !== id) return em;
         if (em.unread) {
-          const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : "";
+          const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : activeNav === "Spam" ? "?folder=spam" : "";
           fetch(`/emails/${id}/mark-read${fp}`, { method: "POST" }).catch(() => {});
         }
         return { ...em, unread: false };
@@ -2460,7 +2470,7 @@ export default function GmailUI() {
       ? setCheckedIds(new Set())
       : setCheckedIds(new Set(filteredEmails.map((e) => e.id)));
 
-  const folderQS = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : "";
+  const folderQS = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : activeNav === "Spam" ? "?folder=spam" : "";
 
   const markCheckedRead = () => {
     const ids = [...checkedIds];
@@ -3063,7 +3073,7 @@ export default function GmailUI() {
                   }}
                   emailPosition={emailPosition}
                   totalEmails={totalEmails}
-                  folder={activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : activeNav === "Snoozed" ? (selectedEmail?.sourceFolder || "inbox") : "inbox"}
+                  folder={activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : activeNav === "Spam" ? "spam" : activeNav === "Snoozed" ? (selectedEmail?.sourceFolder || "inbox") : "inbox"}
                   onPrev={
                     emailIdx > 0
                       ? () => setSelectedId(paginatedEmails[emailIdx - 1].id)
@@ -3297,6 +3307,37 @@ export default function GmailUI() {
                             label: "Restore to Inbox",
                             Icon: MdUndo,
                             action: restoreChecked,
+                          },
+                        ] : activeNav === "Spam" ? [
+                          {
+                            label: "Not spam",
+                            Icon: MdInbox,
+                            action: () => {
+                              const ids = [...checkedIds];
+                              patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
+                              setCheckedIds(new Set());
+                              ids.forEach((id) => fetch(`/emails/${id}/not-spam`, { method: "POST" }).catch(() => {}));
+                            },
+                          },
+                          {
+                            label: "Delete forever",
+                            Icon: MdDelete,
+                            action: () => {
+                              const ids = [...checkedIds];
+                              patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
+                              setCheckedIds(new Set());
+                              ids.forEach((id) => fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}));
+                            },
+                          },
+                          {
+                            label: "Mark read",
+                            Icon: MdMarkEmailRead,
+                            action: markCheckedRead,
+                          },
+                          {
+                            label: "Mark unread",
+                            Icon: MdMarkEmailUnread,
+                            action: markCheckedUnread,
                           },
                         ] : [
                           {
@@ -3579,9 +3620,11 @@ export default function GmailUI() {
                               ? "No drafts"
                               : activeNav === "Trash"
                                 ? "Trash is empty"
-                                : activeNav === "Snoozed"
-                                  ? "No snoozed messages"
-                                  : "No emails found"}
+                                : activeNav === "Spam"
+                                  ? "No spam messages"
+                                  : activeNav === "Snoozed"
+                                    ? "No snoozed messages"
+                                    : "No emails found"}
                       </div>
                     )}
                     {activeNav === "Trash" && filteredEmails.length > 0 && (
@@ -3602,6 +3645,25 @@ export default function GmailUI() {
                         >
                           Empty Trash now
                         </span>
+                      </div>
+                    )}
+                    {activeNav === "Spam" && (
+                      <div style={{ padding: "8px 16px", fontSize: 13, color: "#5f6368", background: "#f6f8fc", borderBottom: "1px solid #e0e0e0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                        <span>Messages that have been in Spam more than 30 days will be automatically deleted.</span>
+                        {filteredEmails.length > 0 && (
+                          <span
+                            style={{ color: "#1a73e8", cursor: "pointer", whiteSpace: "nowrap", marginLeft: 12 }}
+                            onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
+                            onClick={() => {
+                              patchList(() => []);
+                              setCheckedIds(new Set());
+                              fetch("/emails/spam", { method: "DELETE" }).catch(() => {});
+                            }}
+                          >
+                            Delete all spam messages now
+                          </span>
+                        )}
                       </div>
                     )}
                     {paginatedEmails.map((email) => {
@@ -3936,6 +3998,34 @@ export default function GmailUI() {
                                       await fetch(`/emails/${email.id}/restore`, { method: "POST" });
                                     },
                                   },
+                                ] : activeNav === "Spam" ? [
+                                  {
+                                    Icon: MdInbox,
+                                    title: "Not spam",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) => list.filter((em) => em.id !== email.id));
+                                      await fetch(`/emails/${email.id}/not-spam`, { method: "POST" });
+                                    },
+                                  },
+                                  {
+                                    Icon: MdDelete,
+                                    title: "Delete forever",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) => list.filter((em) => em.id !== email.id));
+                                      await fetch(`/emails/${email.id}/delete-forever`, { method: "POST" });
+                                    },
+                                  },
+                                  {
+                                    Icon: MdMarkEmailUnread,
+                                    title: "Mark as unread",
+                                    action: async (e) => {
+                                      e.stopPropagation();
+                                      patchList((list) => list.map((em) => em.id === email.id ? { ...em, unread: true } : em));
+                                      await fetch(`/emails/${email.id}/mark-unread?folder=spam`, { method: "POST" });
+                                    },
+                                  },
                                 ] : [
                                   {
                                     Icon: MdArchive,
@@ -3973,7 +4063,7 @@ export default function GmailUI() {
                                             : em,
                                         ),
                                       );
-                                      const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
+                                      const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : activeNav === "Spam" ? "?folder=spam" : "";
                                       await fetch(`/emails/${email.id}/mark-unread${fp}`, { method: "POST" });
                                     },
                                   },
