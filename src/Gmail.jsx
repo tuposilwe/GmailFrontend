@@ -2153,7 +2153,18 @@ async function fetchEmailList(nav, page) {
 export default function GmailUI() {
   const queryClient = useQueryClient();
 
-  const [selectedId, setSelectedId] = useState(null);
+  // ── Restore state from URL hash on first load ────────────────────────────────
+  const VALID_FOLDERS = new Set(["Inbox","Starred","Sent","Trash","Spam","All Mail"]);
+  const parseHash = () => {
+    const [folder, rawId] = window.location.hash.slice(1).split("/");
+    return {
+      folder: VALID_FOLDERS.has(folder) ? folder : "Inbox",
+      id: rawId ? parseInt(rawId, 10) || null : null,
+    };
+  };
+  const { folder: _initFolder, id: _initId } = parseHash();
+
+  const [selectedId, setSelectedId] = useState(_initId);
   const [checkedIds, setCheckedIds] = useState(new Set());
   const [hoveredId, setHoveredId] = useState(null);
   const [showSelectDropdown, setShowSelectDropdown] = useState(false);
@@ -2162,7 +2173,7 @@ export default function GmailUI() {
   const [unsubscribeTarget, setUnsubscribeTarget] = useState(null);
   const [unsubscribing, setUnsubscribing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [activeNav, setActiveNav] = useState("Inbox");
+  const [activeNav, setActiveNav] = useState(_initFolder);
   const [showCompose, setShowCompose] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [toast, setToast] = useState(null); // null | { message, actions: [{label,onClick}] }
@@ -2241,7 +2252,9 @@ export default function GmailUI() {
     toastTimer.current = setTimeout(() => setToast(null), 5000);
   };
   const [search, setSearch] = useState("");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => localStorage.getItem("sidebarOpen") !== "false"
+  );
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const isExpanded = sidebarOpen || sidebarHovered;
 
@@ -2255,6 +2268,12 @@ export default function GmailUI() {
 
   const emails = emailData?.emails ?? [];
   const totalEmails = emailData?.total ?? 0;
+
+  // Sync URL hash whenever folder or open email changes
+  useEffect(() => {
+    const hash = selectedId ? `${activeNav}/${selectedId}` : activeNav;
+    window.location.hash = hash;
+  }, [activeNav, selectedId]);
 
   // Auto-open the most-recent Sent email after "View message" is clicked
   useEffect(() => {
@@ -2281,7 +2300,13 @@ export default function GmailUI() {
     });
   };
 
-  const selectedEmail = emails.find((e) => e.id === selectedId);
+  // If the email isn't in the current page (e.g. restored from URL after refresh),
+  // create a minimal stub so EmailDetail can still fetch and display it.
+  const selectedEmail =
+    emails.find((e) => e.id === selectedId) ||
+    (selectedId
+      ? { id: selectedId, label: activeNav === "Sent" ? "sent" : "inbox" }
+      : null);
 
   const toggleStar = (id, e) => {
     e.stopPropagation();
@@ -2414,7 +2439,11 @@ export default function GmailUI() {
         {/* Hamburger */}
         <button
           onClick={() => {
-            setSidebarOpen((o) => !o);
+            setSidebarOpen((o) => {
+              const next = !o;
+              localStorage.setItem("sidebarOpen", next);
+              return next;
+            });
             setSidebarHovered(false);
           }}
           title="Main menu"
