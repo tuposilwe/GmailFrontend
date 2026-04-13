@@ -69,7 +69,7 @@ const NAV_ITEMS = [
   { icon: MdStar, label: "Starred" },
   { icon: MdSchedule, label: "Snoozed" },
   { icon: MdSend, label: "Sent" },
-  { icon: MdDrafts, label: "Drafts", badge: 3 },
+  { icon: MdDrafts, label: "Drafts" },
   { icon: MdDelete, label: "Trash" },
 ];
 
@@ -893,7 +893,37 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
   const handleSend = () => {
     // Hand the draft to the parent — the parent delays the actual send
     // for 5 s so the user can click Undo.
-    onPendingSend({ recipients, subject, body, attachments });
+    onPendingSend({ recipients, subject, body, attachments, draftUid: initialDraft?.draftUid });
+    onClose();
+  };
+
+  // Save current compose content to the IMAP Drafts folder
+  const saveDraft = () => {
+    const hasContent =
+      recipients.length > 0 ||
+      subject.trim() ||
+      body.replace(/<[^>]*>/g, "").trim();
+
+    // If opened from an existing draft, delete the original first so we
+    // don't accumulate duplicates (whether or not we save new content).
+    if (initialDraft?.draftUid) {
+      fetch(`/emails/${initialDraft.draftUid}/trash?folder=drafts`, { method: "POST" }).catch(() => {});
+    }
+
+    if (!hasContent) return;
+
+    const fd = new FormData();
+    fd.append("to", recipients.map((r) => r.email).join(", "));
+    fd.append("subject", subject);
+    fd.append("html", body);
+    fd.append("text", body.replace(/<[^>]*>/g, ""));
+    attachments.forEach((f) => fd.append("attachments", f));
+
+    fetch("/emails/drafts", { method: "POST", body: fd }).catch(() => {});
+  };
+
+  const handleClose = () => {
+    saveDraft();
     onClose();
   };
 
@@ -1050,7 +1080,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
               title="Close"
               onClick={(e) => {
                 e.stopPropagation();
-                onClose();
+                handleClose();
               }}
               style={{
                 background: "none",
@@ -2141,7 +2171,8 @@ const emailDetailKey = (id) => ["email", id];
 async function fetchEmailList(nav, page) {
   let url;
   if (nav === "Starred") url = "/emails/starred";
-  else if (nav === "Sent") url = `/emails/sent?page=${page}`;
+  else if (nav === "Sent")   url = `/emails/sent?page=${page}`;
+  else if (nav === "Drafts") url = `/emails/drafts?page=${page}`;
   else url = `/emails?page=${page}`;
 
   const res  = await fetch(url);
@@ -2154,7 +2185,7 @@ export default function GmailUI() {
   const queryClient = useQueryClient();
 
   // ── Restore state from URL hash on first load ────────────────────────────────
-  const VALID_FOLDERS = new Set(["Inbox","Starred","Sent","Trash","Spam","All Mail"]);
+  const VALID_FOLDERS = new Set(["Inbox","Starred","Sent","Drafts","Trash","Spam","All Mail"]);
   const parseHash = () => {
     const [folder, rawId] = window.location.hash.slice(1).split("/");
     return {
@@ -2202,6 +2233,12 @@ export default function GmailUI() {
           body: JSON.stringify(draft.recipients),
         }).catch(() => {});
       }
+      // If this was sent from a draft, remove the original draft from IMAP
+      if (draft.draftUid) {
+        fetch(`/emails/${draft.draftUid}/trash?folder=drafts`, { method: "POST" })
+          .then(() => queryClient.invalidateQueries({ queryKey: ["emails", "Drafts"] }))
+          .catch(() => {});
+      }
     } catch (err) {
       console.error("Failed to send email:", err);
     }
@@ -2209,6 +2246,13 @@ export default function GmailUI() {
 
   const handlePendingSend = (draft) => {
     clearTimeout(undoTimer.current);
+
+    // Optimistically remove from Drafts list the moment the user hits Send
+    if (draft.draftUid) {
+      queryClient.setQueryData(emailListKey("Drafts", 1), (old) =>
+        old ? { ...old, emails: old.emails.filter((e) => e.id !== draft.draftUid), total: Math.max(0, (old.total || 1) - 1) } : old,
+      );
+    }
 
     const doUndo = () => {
       clearTimeout(undoTimer.current);
@@ -2270,12 +2314,20 @@ export default function GmailUI() {
   const totalEmails = emailData?.total ?? 0;
 
   // Always keep a live unread count for Inbox regardless of which folder is active
+  // staleTime=5min so background refetches don't pile up IMAP connections
   const inboxData = useQuery({
     queryKey: emailListKey("Inbox", 1),
     queryFn: () => fetchEmailList("Inbox", 1),
-    staleTime: 60_000,
+    staleTime: 5 * 60_000,
   });
   const inboxUnreadCount = (inboxData.data?.emails ?? []).filter((e) => e.unread).length;
+
+  const draftsData = useQuery({
+    queryKey: emailListKey("Drafts", 1),
+    queryFn: () => fetchEmailList("Drafts", 1),
+    staleTime: 5 * 60_000,
+  });
+  const draftsCount = draftsData.data?.total ?? 0;
 
   // Sync URL hash whenever folder or open email changes
   useEffect(() => {
@@ -2335,12 +2387,35 @@ export default function GmailUI() {
       toggleCheck(id);
       return;
     }
+
+    // Drafts open in ComposeModal pre-filled, not in the detail view
+    if (activeNav === "Drafts") {
+      fetch(`/emails/${id}?folder=drafts`)
+        .then((r) => r.json())
+        .then((detail) => {
+          const toAddresses = detail.toEmail
+            ? [{ name: detail.toName || detail.toEmail, email: detail.toEmail }]
+            : [];
+          setComposeDraft({
+            recipients:  toAddresses,
+            subject:     detail.subject || "",
+            body:        detail.html || detail.text || "",
+            attachments: [],
+            draftUid:    id,   // so executeSend can delete this draft after sending
+          });
+          setComposeKey((k) => k + 1);
+          setShowCompose(true);
+          setComposeMinimized(false);
+        })
+        .catch(() => {});
+      return;
+    }
+
     setSelectedId(id);
     patchList((list) =>
       list.map((em) => {
         if (em.id !== id) return em;
         if (em.unread) {
-          // Persist the read state on the IMAP server
           const fp = activeNav === "Sent" ? "?folder=sent" : "";
           fetch(`/emails/${id}/mark-read${fp}`, { method: "POST" }).catch(() => {});
         }
@@ -2711,14 +2786,13 @@ export default function GmailUI() {
                 {item.label}
               </span>
               {item.label === "Inbox" && inboxUnreadCount > 0 && isExpanded && (
-                <span
-                  style={{
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: activeNav === item.label ? "#001d35" : "#202124",
-                  }}
-                >
+                <span style={{ fontSize: 12, fontWeight: 600, color: activeNav === item.label ? "#001d35" : "#202124" }}>
                   {inboxUnreadCount}
+                </span>
+              )}
+              {item.label === "Drafts" && draftsCount > 0 && isExpanded && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: activeNav === item.label ? "#001d35" : "#c5221f" }}>
+                  {draftsCount}
                 </span>
               )}
               {item.badge && !isExpanded && (
@@ -3798,6 +3872,10 @@ export default function GmailUI() {
             setShowCompose(false);
             setComposeMinimized(false);
             setComposeDraft(null);
+            // Refresh Drafts folder so badge + list stay in sync
+            setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ["emails", "Drafts"] });
+            }, 500);
           }}
           onPendingSend={handlePendingSend}
           minimized={composeMinimized}
