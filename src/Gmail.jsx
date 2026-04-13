@@ -104,7 +104,9 @@ function SenderAvatar({
   verified = false,
 }) {
   const domain = senderEmail ? senderEmail.split("@")[1] : "";
-  const logoUrl = domain ? `/logo?domain=${domain}` : "";
+  const logoUrl = domain
+    ? `/logo?domain=${domain}&email=${encodeURIComponent(senderEmail || "")}`
+    : "";
 
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
