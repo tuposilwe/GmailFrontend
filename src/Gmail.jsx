@@ -2297,7 +2297,14 @@ export default function GmailUI() {
     }
     setSelectedId(id);
     patchList((list) =>
-      list.map((em) => (em.id === id ? { ...em, unread: false } : em)),
+      list.map((em) => {
+        if (em.id !== id) return em;
+        if (em.unread) {
+          // Persist the read state on the IMAP server
+          fetch(`/emails/${id}/mark-read`, { method: "POST" }).catch(() => {});
+        }
+        return { ...em, unread: false };
+      }),
     );
   };
 
