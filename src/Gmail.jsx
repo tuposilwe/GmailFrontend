@@ -117,24 +117,7 @@ function SenderAvatar({
     setFailed(false);
   }, [senderEmail]);
 
-  const badge = verified && (
-    <div
-      style={{
-        position: "absolute",
-        bottom: -3,
-        right: -3,
-        background: "#fff",
-        borderRadius: "50%",
-        width: 18,
-        height: 18,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <MdVerified size={16} color="#1a73e8" />
-    </div>
-  );
+  const badge = null;
 
   // No domain or all sources failed → coloured initials + optional badge
   if (failed || !domain) {
@@ -1843,7 +1826,7 @@ function EmailDetail({
                 <div
                   style={{
                     display: "flex",
-                    alignItems: "baseline",
+                    alignItems: "center",
                     gap: 6,
                     minWidth: 0,
                     flexWrap: "wrap",
@@ -1854,6 +1837,9 @@ function EmailDetail({
                   >
                     {senderName}
                   </span>
+                  {!!(detail?.verified ?? email.verified) && (
+                    <MdVerified size={16} color="#1a73e8" style={{ flexShrink: 0 }} />
+                  )}
                   {senderEmail && (
                     <span style={{ fontSize: 12, color: "#5f6368" }}>
                       &lt;{senderEmail}&gt;
@@ -3649,19 +3635,29 @@ export default function GmailUI() {
                               <MdStarBorder size={18} />
                             )}
                           </span>
-                          <span
+                          <div
                             style={{
                               minWidth: 148,
                               maxWidth: 148,
-                              fontSize: 14,
-                              color: "#202124",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 3,
                               overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
                             }}
                           >
-                            {activeNav === "Sent" ? `To: ${email.sender}` : email.sender}
-                          </span>
+                            <span
+                              style={{
+                                fontSize: 14,
+                                color: "#202124",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                minWidth: 0,
+                              }}
+                            >
+                              {activeNav === "Sent" ? `To: ${email.sender}` : email.sender}
+                            </span>
+                          </div>
                           <div
                             style={{
                               flex: 1,
