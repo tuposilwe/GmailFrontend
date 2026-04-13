@@ -2311,7 +2311,14 @@ export default function GmailUI() {
   const toggleStar = (id, e) => {
     e.stopPropagation();
     patchList((list) =>
-      list.map((em) => (em.id === id ? { ...em, starred: !em.starred } : em)),
+      list.map((em) => {
+        if (em.id !== id) return em;
+        const nowStarred = !em.starred;
+        fetch(`/emails/${id}/${nowStarred ? "star" : "unstar"}`, { method: "POST" }).catch(() => {});
+        // In the Starred folder, unstarring should remove the row
+        if (activeNav === "Starred" && !nowStarred) return null;
+        return { ...em, starred: nowStarred };
+      }).filter(Boolean),
     );
   };
 
