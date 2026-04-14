@@ -3314,6 +3314,7 @@ export default function GmailUI() {
             flex: 1,
             maxWidth: 720,
             position: "relative",
+            marginLeft: 90,
           }}
         >
           {/* Input row */}
