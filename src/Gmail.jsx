@@ -78,6 +78,48 @@ const NAV_ITEMS_MORE = [
   { icon: MdDelete, label: "Trash" },
 ];
 
+function Tooltip({ label, children, position = "bottom" }) {
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef(null);
+
+  const show = () => { timerRef.current = setTimeout(() => setVisible(true), 500); };
+  const hide = () => { clearTimeout(timerRef.current); setVisible(false); };
+
+  return (
+    <div
+      style={{ position: "relative", display: "inline-flex" }}
+      onMouseEnter={show}
+      onMouseLeave={hide}
+    >
+      {children}
+      {visible && (
+        <div style={{
+          position: "absolute",
+          ...(position === "bottom"
+            ? { top: "calc(100% + 6px)" }
+            : { bottom: "calc(100% + 6px)" }),
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#3c4043",
+          color: "#fff",
+          fontSize: 12,
+          fontWeight: 400,
+          padding: "5px 10px",
+          borderRadius: 4,
+          whiteSpace: "nowrap",
+          pointerEvents: "none",
+          zIndex: 9999,
+          lineHeight: "16px",
+          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+          letterSpacing: "0.01em",
+        }}>
+          {label}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Avatar({ initials, color, size = 36 }) {
   return (
     <div
@@ -1722,30 +1764,30 @@ function EmailDetail({
   };
 
   const iconBtn = (onClick, title, children) => (
-    <button
-      key={title}
-      title={title}
-      onClick={onClick}
-      style={{
-        background: "none",
-        border: "none",
-        cursor: "pointer",
-        color: "#5f6368",
-        width: 40,
-        height: 40,
-        borderRadius: "50%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        flexShrink: 0,
-      }}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
-      }
-      onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-    >
-      {children}
-    </button>
+    <Tooltip key={title} label={title} position="bottom">
+      <button
+        onClick={onClick}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "#5f6368",
+          width: 40,
+          height: 40,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+        }}
+        onMouseEnter={(e) =>
+          (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+        }
+        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+      >
+        {children}
+      </button>
+    </Tooltip>
   );
 
   return (
@@ -3503,31 +3545,31 @@ export default function GmailUI() {
                             action: markCheckedUnread,
                           },
                         ]).map(({ label, Icon, action }) => (
-                          <button
-                            key={label}
-                            onClick={action}
-                            title={label}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              borderRadius: "50%",
-                              width: 32,
-                              height: 32,
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "#5f6368",
-                            }}
-                            onMouseEnter={(e) =>
-                              (e.currentTarget.style.background = "#d2e3fc")
-                            }
-                            onMouseLeave={(e) =>
-                              (e.currentTarget.style.background = "none")
-                            }
-                          >
-                            <Icon size={18} />
-                          </button>
+                          <Tooltip key={label} label={label} position="bottom">
+                            <button
+                              onClick={action}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                borderRadius: "50%",
+                                width: 32,
+                                height: 32,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                color: "#5f6368",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.background = "#d2e3fc")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.background = "none")
+                              }
+                            >
+                              <Icon size={18} />
+                            </button>
+                          </Tooltip>
                         ))}
                       </>
                     ) : null}
@@ -3537,44 +3579,9 @@ export default function GmailUI() {
                       style={{ display: "flex", alignItems: "center", gap: 2 }}
                     >
                       {/* Refresh */}
-                      <button
-                        onClick={refreshEmails}
-                        title="Refresh"
-                        style={{
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          borderRadius: "50%",
-                          width: 36,
-                          height: 36,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#5f6368",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.currentTarget.style.background = "#f1f3f4")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.currentTarget.style.background = "none")
-                        }
-                      >
-                        <MdRefresh
-                          size={20}
-                          style={{
-                            transition: "transform 0.5s",
-                            transform: refreshing
-                              ? "rotate(360deg)"
-                              : "rotate(0deg)",
-                          }}
-                        />
-                      </button>
-
-                      {/* Three-dots menu */}
-                      <div style={{ position: "relative" }}>
+                      <Tooltip label="Refresh" position="bottom">
                         <button
-                          onClick={() => setShowMoreMenu((v) => !v)}
-                          title="More"
+                          onClick={refreshEmails}
                           style={{
                             background: "none",
                             border: "none",
@@ -3594,8 +3601,45 @@ export default function GmailUI() {
                             (e.currentTarget.style.background = "none")
                           }
                         >
-                          <MdMoreVert size={20} />
+                          <MdRefresh
+                            size={20}
+                            style={{
+                              transition: "transform 0.5s",
+                              transform: refreshing
+                                ? "rotate(360deg)"
+                                : "rotate(0deg)",
+                            }}
+                          />
                         </button>
+                      </Tooltip>
+
+                      {/* Three-dots menu */}
+                      <div style={{ position: "relative" }}>
+                        <Tooltip label="More" position="bottom">
+                          <button
+                            onClick={() => setShowMoreMenu((v) => !v)}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              borderRadius: "50%",
+                              width: 36,
+                              height: 36,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#5f6368",
+                            }}
+                            onMouseEnter={(e) =>
+                              (e.currentTarget.style.background = "#f1f3f4")
+                            }
+                            onMouseLeave={(e) =>
+                              (e.currentTarget.style.background = "none")
+                            }
+                          >
+                            <MdMoreVert size={20} />
+                          </button>
+                        </Tooltip>
 
                         {showMoreMenu && (
                           <>
@@ -4218,36 +4262,34 @@ export default function GmailUI() {
                                     },
                                   },
                                 ]).map(({ Icon, title, action }) => (
-                                  <button
-                                    key={title}
-                                    title={title}
-                                    onClick={action}
-                                    onMouseDown={(e) => e.stopPropagation()}
-                                    style={{
-                                      background: "none",
-                                      border: "none",
-                                      cursor: "pointer",
-                                      color: "#5f6368",
-                                      width: 28,
-                                      height: 28,
-                                      borderRadius: "50%",
-                                      display: "flex",
-                                      alignItems: "center",
-                                      justifyContent: "center",
-                                      flexShrink: 0,
-                                    }}
-                                    onMouseEnter={(e) => {
-                                      e.stopPropagation();
-                                      e.currentTarget.style.background =
-                                        "rgba(0,0,0,0.08)";
-                                    }}
-                                    onMouseLeave={(e) =>
-                                      (e.currentTarget.style.background =
-                                        "none")
-                                    }
-                                  >
-                                    <Icon size={16} />
-                                  </button>
+                                  <Tooltip key={title} label={title} position="bottom">
+                                    <button
+                                      onClick={action}
+                                      onMouseDown={(e) => e.stopPropagation()}
+                                      style={{
+                                        background: "none",
+                                        border: "none",
+                                        cursor: "pointer",
+                                        color: "#5f6368",
+                                        width: 28,
+                                        height: 28,
+                                        borderRadius: "50%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        flexShrink: 0,
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.stopPropagation();
+                                        e.currentTarget.style.background = "rgba(0,0,0,0.08)";
+                                      }}
+                                      onMouseLeave={(e) =>
+                                        (e.currentTarget.style.background = "none")
+                                      }
+                                    >
+                                      <Icon size={16} />
+                                    </button>
+                                  </Tooltip>
                                 ))}
                               </>
                             ) : (
