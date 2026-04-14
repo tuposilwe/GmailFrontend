@@ -57,6 +57,9 @@ import {
   MdFormatQuote,
   MdUndo,
   MdRedo,
+  MdTune,
+  MdHelpOutline,
+  MdSettings,
 } from "react-icons/md";
 
 const LABEL_STYLES = {
@@ -3283,6 +3286,9 @@ export default function GmailUI() {
           <MdMenu size={22} color="#5f6368" />
         </button>
 
+        {/* Gmail icon */}
+        <img src="/gmail.png" alt="Gmail" width={28} height={28} style={{ flexShrink: 0 }} />
+
         {/* Gmail logo */}
         <span
           onClick={() => {
@@ -3300,11 +3306,7 @@ export default function GmailUI() {
             cursor: "pointer",
           }}
         >
-          <span style={{ color: "#4285F4" }}>G</span>
-          <span style={{ color: "#EA4335" }}>m</span>
-          <span style={{ color: "#FBBC05" }}>a</span>
-          <span style={{ color: "#4285F4" }}>i</span>
-          <span style={{ color: "#34A853" }}>l</span>
+          <span style={{ color: "#5f6368" }}>Gmail</span>
         </span>
 
         {/* Search bar */}
@@ -3377,7 +3379,7 @@ export default function GmailUI() {
                 onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
                 onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
               >
-                <MdKeyboardArrowDown size={20} style={{ transform: showAdvancedSearch ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+                <MdTune size={20} />
               </button>
             </Tooltip>
           </div>
@@ -3580,6 +3582,28 @@ export default function GmailUI() {
         </div>
 
         <div style={{ flex: 1 }} />
+
+        {/* Support */}
+        <Tooltip label="Support" position="bottom">
+          <button
+            style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#e0e0e0")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdHelpOutline size={22} />
+          </button>
+        </Tooltip>
+
+        {/* Settings */}
+        <Tooltip label="Settings" position="bottom">
+          <button
+            style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#e0e0e0")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdSettings size={22} />
+          </button>
+        </Tooltip>
 
         {/* Avatar */}
         <div
