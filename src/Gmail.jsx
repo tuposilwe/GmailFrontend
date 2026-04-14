@@ -2779,6 +2779,8 @@ export default function GmailUI() {
   const [advancedFields, setAdvancedFields] = useState({ from: "", to: "", subject: "", hasWords: "", noWords: "", hasAttachment: false, dateAfter: "", dateBefore: "" });
   const searchRef = useRef(null);
   const searchInputRef = useRef(null);
+  const emailListRef = useRef(null);
+  const savedScrollTop = useRef(0);
 
   // Debounce search input — fire backend query 400ms after user stops typing
   useEffect(() => {
@@ -2933,6 +2935,19 @@ export default function GmailUI() {
     window.location.hash = hash;
   }, [activeNav, selectedId]);
 
+  // Restore email list scroll position when going back from an email
+  useEffect(() => {
+    if (!selectedId && emailListRef.current) {
+      emailListRef.current.scrollTop = savedScrollTop.current;
+    }
+  }, [selectedId]);
+
+  // Reset scroll to top when switching folders
+  useEffect(() => {
+    savedScrollTop.current = 0;
+    if (emailListRef.current) emailListRef.current.scrollTop = 0;
+  }, [activeNav]);
+
   // Auto-open the most-recent Sent email after "View message" is clicked
   useEffect(() => {
     if (pendingOpenLatestSent.current && activeNav === "Sent" && emails.length > 0) {
@@ -3015,6 +3030,8 @@ export default function GmailUI() {
       return;
     }
 
+    // Save scroll position before opening so we can restore it on back
+    savedScrollTop.current = emailListRef.current?.scrollTop ?? 0;
     setSelectedId(id);
     patchList((list) =>
       list.map((em) => {
@@ -4550,7 +4567,7 @@ export default function GmailUI() {
                   </div>
 
                   {/* Email List */}
-                  <div style={{ flex: 1, overflowY: "auto" }}>
+                  <div ref={emailListRef} style={{ flex: 1, overflowY: "auto" }}>
                     {loading && (
                       <div
                         style={{
