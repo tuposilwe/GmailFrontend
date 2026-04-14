@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MdInbox,
@@ -61,6 +61,7 @@ import {
   MdHelpOutline,
   MdSettings,
   MdAdd,
+  MdDraw,
 } from "react-icons/md";
 
 const LABEL_STYLES = {};
@@ -522,12 +523,36 @@ function ToField({ recipients, onChange, preloaded }) {
   );
 }
 
-function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
+const EMOJI_LIST = [
+  "😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😋","😎","😍","🥰","😘",
+  "😗","😙","😚","🙂","🤗","🤩","🤔","🤨","😐","😑","😶","🙄","😏","😣","😥",
+  "😮","🤐","😯","😪","😫","🥱","😴","😌","😛","😜","😝","🤤","😒","😓","😔",
+  "😕","🙃","🤑","😲","☹️","🙁","😖","😞","😟","😤","😢","😭","😦","😧","😨",
+  "😩","🤯","😬","😰","😱","🥵","🥶","😳","🤪","😵","😡","😠","🤬","😷","🤒",
+  "🤕","🤢","🤮","🤧","😇","🥳","🥺","🤠","🤡","🤥","🤫","🤭","🧐","🤓","😈",
+  "👋","🤚","🖐","✋","🖖","👌","🤌","🤏","✌️","🤞","🤟","🤘","🤙","👈","👉",
+  "👆","👇","☝️","👍","👎","✊","👊","🤛","🤜","👏","🙌","👐","🤲","🤝",
+  "🙏","❤️","🧡","💛","💚","💙","💜","🖤","🤍","🤎","💔","❤️‍🔥","❤️‍🩹","💕",
+  "🎉","🎊","🎈","🎁","🎂","🍕","🍔","🍟","🌮","🍜","🍣","🍦","🍩","🍪","☕",
+];
+
+const RichTextEditor = forwardRef(function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }, ref) {
   const editorRef = useRef(null);
   const colorInputRef = useRef(null);
+  const imageInputRef = useRef(null);
   const [formats, setFormats] = useState({});
   const [fontSize, setFontSize] = useState("3");
   const [fontName, setFontName] = useState("Arial, sans-serif");
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("https://");
+  const [linkText, setLinkText] = useState("");
+  const [savedRange, setSavedRange] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedImg, setSelectedImg] = useState(null);
+  const [imgToolbarPos, setImgToolbarPos] = useState({ top: 0, left: 0 });
+  const imgToolbarRef = useRef(null);
+  const linkDialogRef = useRef(null);
+  const emojiPickerRef = useRef(null);
 
   useEffect(() => {
     if (initialHTML && editorRef.current) {
@@ -566,6 +591,65 @@ function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
     document.execCommand(cmd, false, val);
     updateFormats();
     onChange(editorRef.current?.innerHTML || "");
+  };
+
+  // Save current selection so it can be restored after a popover steals focus
+  const saveSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) setSavedRange(sel.getRangeAt(0).cloneRange());
+  };
+
+  const restoreSelection = () => {
+    if (!savedRange) return;
+    editorRef.current?.focus();
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedRange);
+  };
+
+  // Close popovers + image toolbar on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (linkDialogRef.current && !linkDialogRef.current.contains(e.target)) setShowLinkDialog(false);
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) setShowEmojiPicker(false);
+      if (imgToolbarRef.current && !imgToolbarRef.current.contains(e.target) && e.target.tagName !== "IMG") setSelectedImg(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Detect image click inside editor
+  const handleEditorClick = (e) => {
+    updateFormats();
+    if (e.target.tagName === "IMG") {
+      const img = e.target;
+      const rect = img.getBoundingClientRect();
+      setSelectedImg(img);
+      setImgToolbarPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX });
+    } else {
+      setSelectedImg(null);
+    }
+  };
+
+  const applyImageSize = (size) => {
+    if (!selectedImg) return;
+    if (size === "small") {
+      selectedImg.style.width = "200px";
+      selectedImg.style.maxWidth = "200px";
+      selectedImg.style.height = "auto";
+    } else if (size === "bestfit") {
+      selectedImg.style.width = "100%";
+      selectedImg.style.maxWidth = "100%";
+      selectedImg.style.height = "auto";
+    } else {
+      selectedImg.style.width = "";
+      selectedImg.style.maxWidth = "none";
+      selectedImg.style.height = "";
+    }
+    onChange(editorRef.current?.innerHTML || "");
+    // Reposition toolbar after resize
+    const rect = selectedImg.getBoundingClientRect();
+    setImgToolbarPos({ top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX });
   };
 
   const handleInput = () => {
@@ -628,6 +712,13 @@ function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
     fontFamily: "Google Sans, Roboto, sans-serif",
   };
 
+  // Expose trigger methods to ComposeModal via ref
+  useImperativeHandle(ref, () => ({
+    openLinkDialog() { saveSelection(); setShowLinkDialog(true); setShowEmojiPicker(false); },
+    openEmojiPicker() { saveSelection(); setShowEmojiPicker(true); setShowLinkDialog(false); },
+    triggerImageInsert() { saveSelection(); imageInputRef.current?.click(); },
+  }));
+
   return (
     <div
       style={{
@@ -644,11 +735,13 @@ function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
         suppressContentEditableWarning
         onInput={handleInput}
         onKeyUp={updateFormats}
-        onMouseUp={updateFormats}
+        onMouseUp={handleEditorClick}
+        onClick={handleEditorClick}
         data-placeholder="Write your message..."
         style={{
           flex: fullscreen ? 1 : "none",
           minHeight: fullscreen ? "unset" : 190,
+          maxHeight: fullscreen ? "unset" : 260,
           padding: "12px 16px",
           outline: "none",
           fontSize: 14,
@@ -895,29 +988,6 @@ function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
             <MdFormatQuote size={18} />
           </button>
 
-          <button
-            title="Insert link"
-            onMouseDown={(e) => {
-              e.preventDefault();
-              const url = window.prompt("Enter URL:");
-              if (url) exec("createLink", url);
-            }}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "3px 5px",
-              borderRadius: 4,
-              color: "#444746",
-              display: "flex",
-              alignItems: "center",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-          >
-            <MdInsertLink size={18} />
-          </button>
-
           <Divider />
 
           <button
@@ -944,6 +1014,144 @@ function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
         </div>
       )}
 
+      {/* ── Always-mounted: image input + popovers (work regardless of toolbar state) ── */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: "none" }}
+        onChange={e => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = ev => {
+            restoreSelection();
+            exec("insertHTML", `<img src="${ev.target.result}" alt="${file.name}" style="max-width:100%;height:auto;border-radius:4px;margin:4px 0;" />`);
+          };
+          reader.readAsDataURL(file);
+          e.target.value = "";
+        }}
+      />
+      {showLinkDialog && (
+        <div ref={linkDialogRef} style={{
+          position: "fixed", bottom: 110, left: "50%", transform: "translateX(-50%)",
+          zIndex: 500, background: "#fff", borderRadius: 8,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.22)", border: "1px solid #e0e0e0",
+          padding: "14px 16px", width: 300,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#202124", marginBottom: 10 }}>Insert link</div>
+          <label style={{ fontSize: 12, color: "#5f6368" }}>Text to display</label>
+          <input autoFocus value={linkText} onChange={e => setLinkText(e.target.value)} placeholder="Link text"
+            style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 4, marginBottom: 10, padding: "6px 10px", border: "1px solid #dadce0", borderRadius: 4, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+            onFocus={e => e.currentTarget.style.borderColor = "#1a73e8"}
+            onBlur={e => e.currentTarget.style.borderColor = "#dadce0"} />
+          <label style={{ fontSize: 12, color: "#5f6368" }}>Web address (URL)</label>
+          <input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://"
+            style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: 4, marginBottom: 14, padding: "6px 10px", border: "1px solid #dadce0", borderRadius: 4, fontSize: 13, outline: "none", fontFamily: "inherit" }}
+            onFocus={e => e.currentTarget.style.borderColor = "#1a73e8"}
+            onBlur={e => e.currentTarget.style.borderColor = "#dadce0"} />
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button onClick={() => setShowLinkDialog(false)}
+              style={{ padding: "6px 14px", borderRadius: 4, border: "1px solid #dadce0", background: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+              onMouseLeave={e => e.currentTarget.style.background = "#fff"}>Cancel</button>
+            <button onClick={() => {
+                const url = linkUrl.trim();
+                if (!url) return;
+                restoreSelection();
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+                  exec("createLink", url);
+                } else {
+                  const display = linkText.trim() || url;
+                  exec("insertHTML", `<a href="${url}" target="_blank" rel="noopener noreferrer">${display}</a>`);
+                }
+                setShowLinkDialog(false);
+              }}
+              style={{ padding: "6px 14px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+              onMouseEnter={e => e.currentTarget.style.background = "#1765cc"}
+              onMouseLeave={e => e.currentTarget.style.background = "#1a73e8"}>OK</button>
+          </div>
+        </div>
+      )}
+      {/* ── Image size toolbar — appears below a clicked image ── */}
+      {selectedImg && (
+        <div ref={imgToolbarRef} style={{
+          position: "fixed",
+          top: imgToolbarPos.top,
+          left: imgToolbarPos.left,
+          zIndex: 500,
+          background: "#202124",
+          borderRadius: 6,
+          boxShadow: "0 2px 8px rgba(0,0,0,0.28)",
+          display: "flex",
+          alignItems: "center",
+          padding: "2px 4px",
+          gap: 2,
+        }}>
+          {[
+            { label: "Small",    size: "small"   },
+            { label: "Best fit", size: "bestfit" },
+            { label: "Original", size: "original"},
+          ].map(({ label, size }) => {
+            const active =
+              size === "small"    ? selectedImg.style.width === "200px" :
+              size === "bestfit"  ? selectedImg.style.width === "100%" :
+              size === "original" ? (!selectedImg.style.width || selectedImg.style.maxWidth === "none") :
+              false;
+            return (
+              <button
+                key={size}
+                onMouseDown={e => e.preventDefault()}
+                onClick={() => applyImageSize(size)}
+                style={{
+                  background: active ? "rgba(255,255,255,0.2)" : "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: active ? 600 : 400,
+                  padding: "4px 10px",
+                  borderRadius: 4,
+                  fontFamily: "Google Sans, Roboto, sans-serif",
+                  whiteSpace: "nowrap",
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.background = "rgba(255,255,255,0.12)"; }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.background = "none"; }}
+              >{label}</button>
+            );
+          })}
+          <div style={{ width: 1, height: 16, background: "rgba(255,255,255,0.25)", margin: "0 2px" }} />
+          <button
+            onMouseDown={e => e.preventDefault()}
+            onClick={() => { selectedImg.remove(); onChange(editorRef.current?.innerHTML || ""); setSelectedImg(null); }}
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", fontSize: 12, padding: "4px 8px", borderRadius: 4, fontFamily: "inherit" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.12)"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}
+          >Remove</button>
+        </div>
+      )}
+
+      {showEmojiPicker && (
+        <div ref={emojiPickerRef} style={{
+          position: "fixed", bottom: 110, left: "50%", transform: "translateX(-50%)",
+          zIndex: 500, background: "#fff", borderRadius: 10,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.22)", border: "1px solid #e0e0e0",
+          padding: 8, width: 220, maxHeight: 180, overflowY: "auto",
+        }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+            {EMOJI_LIST.map((em, i) => (
+              <button key={i} onMouseDown={e => e.preventDefault()}
+                onClick={() => { restoreSelection(); exec("insertText", em); setShowEmojiPicker(false); }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: 18, padding: "2px 3px", borderRadius: 4, lineHeight: 1 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >{em}</button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <style>{`
         [contenteditable]:empty:before {
           content: attr(data-placeholder);
@@ -957,10 +1165,12 @@ function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
           color: #5f6368;
         }
         [contenteditable] a { color: #1a73e8; text-decoration: underline; }
+        [contenteditable] img { cursor: pointer; }
+        [contenteditable] img:hover { outline: 2px solid #1a73e8; }
       `}</style>
     </div>
   );
-}
+});
 
 function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinimize }) {
   const [recipients, setRecipients] = useState(initialDraft?.recipients || []);
@@ -971,7 +1181,28 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
   const [showFormatting, setShowFormatting] = useState(false);
   const [attachments, setAttachments] = useState(initialDraft?.attachments || []);
   const fileInputRef = useRef(null);
+  const editorRef = useRef(null);
+  const signaturePopoverRef = useRef(null);
+  const signatureEditorRef = useRef(null);
+  const signatureImageInputRef = useRef(null);
   const [preloadedContacts, setPreloadedContacts] = useState([]);
+  const [showSignaturePopover, setShowSignaturePopover] = useState(false);
+  const [signatureHtml, setSignatureHtml] = useState(
+    () => localStorage.getItem("compose_signature_html") || ""
+  );
+  const [editingSignature, setEditingSignature] = useState(false);
+
+  // Close signature popover on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (signaturePopoverRef.current && !signaturePopoverRef.current.contains(e.target)) {
+        setShowSignaturePopover(false);
+        setEditingSignature(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // Pre-fetch top contacts as soon as the modal opens
   useEffect(() => {
@@ -1237,7 +1468,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
               />
             </div>
 
-            <RichTextEditor onChange={setBody} fullscreen={fullscreen} showToolbar={showFormatting} initialHTML={initialDraft?.body} />
+            <RichTextEditor ref={editorRef} onChange={setBody} fullscreen={fullscreen} showToolbar={showFormatting} initialHTML={initialDraft?.body} />
 
             {/* Attachment chips */}
             {attachments.length > 0 && (
@@ -1367,12 +1598,186 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                   </span>
                 )}
               </button>
+
+              {/* Insert Link */}
               <button
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  padding: "6px 8px", borderRadius: "50%",
-                  color: "#5f6368", display: "flex", alignItems: "center",
-                }}
+                title="Insert link"
+                onClick={() => editorRef.current?.openLinkDialog()}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                <MdInsertLink size={18} />
+              </button>
+
+              {/* Insert Emoji */}
+              <button
+                title="Insert emoji"
+                onClick={() => editorRef.current?.openEmojiPicker()}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center", fontSize: 16 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >😊</button>
+
+              {/* Insert Image */}
+              <button
+                title="Insert image"
+                onClick={() => editorRef.current?.triggerImageInsert()}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                <MdImage size={18} />
+              </button>
+
+              {/* Insert Signature */}
+              <div style={{ position: "relative" }} ref={signaturePopoverRef}>
+                <button
+                  title="Insert signature"
+                  onClick={() => {
+                    setEditingSignature(false);
+                    setShowSignaturePopover(v => !v);
+                  }}
+                  style={{ background: showSignaturePopover ? "#e8f0fe" : "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: showSignaturePopover ? "#1967d2" : "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => { if (!showSignaturePopover) e.currentTarget.style.background = "#f1f3f4"; }}
+                  onMouseLeave={e => { if (!showSignaturePopover) e.currentTarget.style.background = "none"; }}
+                >
+                  <MdDraw size={18} />
+                </button>
+                {showSignaturePopover && (
+                  <div style={{
+                    position: "absolute", bottom: "calc(100% + 8px)", right: 0,
+                    zIndex: 500, background: "#fff", borderRadius: 8,
+                    boxShadow: "0 4px 16px rgba(0,0,0,0.18)", border: "1px solid #e0e0e0",
+                    width: 300, padding: "14px 16px",
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#202124", marginBottom: 10 }}>Signature</div>
+                    {editingSignature ? (
+                      <>
+                        {/* Mini toolbar for signature editor */}
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, marginBottom: 4, padding: "2px 0" }}>
+                          {[
+                            { cmd: "bold",      label: <b>B</b>          },
+                            { cmd: "italic",    label: <i>I</i>          },
+                            { cmd: "underline", label: <u>U</u>          },
+                          ].map(({ cmd, label }) => (
+                            <button key={cmd} onMouseDown={e => { e.preventDefault(); signatureEditorRef.current?.focus(); document.execCommand(cmd); }}
+                              style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 3, fontSize: 13, color: "#444746" }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                              onMouseLeave={e => e.currentTarget.style.background = "none"}>{label}</button>
+                          ))}
+                          <div style={{ width: 1, height: 14, background: "#e0e0e0", margin: "0 2px" }} />
+                          {/* Image upload */}
+                          <input ref={signatureImageInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => {
+                                signatureEditorRef.current?.focus();
+                                document.execCommand("insertHTML", false, `<img src="${ev.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`);
+                              };
+                              reader.readAsDataURL(file);
+                              e.target.value = "";
+                            }}
+                          />
+                          <button onMouseDown={e => { e.preventDefault(); signatureImageInputRef.current?.click(); }}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 3, fontSize: 12, color: "#444746", display: "flex", alignItems: "center" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                            onMouseLeave={e => e.currentTarget.style.background = "none"} title="Insert image">
+                            <MdImage size={15} />
+                          </button>
+                        </div>
+
+                        {/* Rich editor */}
+                        <div
+                          ref={signatureEditorRef}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onInput={() => {}}
+                          data-placeholder="Type your signature or insert an image..."
+                          style={{
+                            minHeight: 80, maxHeight: 160, overflowY: "auto",
+                            border: "1px solid #dadce0", borderRadius: 4,
+                            padding: "8px 10px", fontSize: 13, fontFamily: "inherit",
+                            outline: "none", lineHeight: 1.5, marginBottom: 10,
+                          }}
+                          onFocus={e => e.currentTarget.style.borderColor = "#1a73e8"}
+                          onBlur={e => e.currentTarget.style.borderColor = "#dadce0"}
+                        />
+
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                          <button onClick={() => setEditingSignature(false)}
+                            style={{ padding: "6px 14px", borderRadius: 4, border: "1px solid #dadce0", background: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                            onMouseLeave={e => e.currentTarget.style.background = "#fff"}>Cancel</button>
+                          <button onClick={() => {
+                              const html = signatureEditorRef.current?.innerHTML || "";
+                              localStorage.setItem("compose_signature_html", html);
+                              setSignatureHtml(html);
+                              setEditingSignature(false);
+                            }}
+                            style={{ padding: "6px 14px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#1765cc"}
+                            onMouseLeave={e => e.currentTarget.style.background = "#1a73e8"}>Save</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {signatureHtml ? (
+                          <div
+                            dangerouslySetInnerHTML={{ __html: signatureHtml }}
+                            style={{ fontSize: 13, color: "#202124", background: "#f8f9fa", borderRadius: 4, padding: "8px 10px", marginBottom: 10, maxHeight: 120, overflowY: "auto", wordBreak: "break-word" }}
+                          />
+                        ) : (
+                          <div style={{ fontSize: 13, color: "#5f6368", marginBottom: 10 }}>No signature set.</div>
+                        )}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {signatureHtml && (
+                            <button
+                              onClick={() => {
+                                const html = `<br/><div style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${signatureHtml}</div>`;
+                                const mainEditor = editorRef.current;
+                                if (mainEditor) {
+                                  // Use the exposed insertHTML via RichTextEditor's exec
+                                  const el = document.querySelector('[data-placeholder="Write your message..."]');
+                                  if (el) {
+                                    el.focus();
+                                    const sel = window.getSelection();
+                                    const range = document.createRange();
+                                    range.selectNodeContents(el);
+                                    range.collapse(false);
+                                    sel.removeAllRanges();
+                                    sel.addRange(range);
+                                    document.execCommand("insertHTML", false, html);
+                                    setBody(el.innerHTML);
+                                  }
+                                }
+                                setShowSignaturePopover(false);
+                              }}
+                              style={{ flex: 1, padding: "6px 14px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#1765cc"}
+                              onMouseLeave={e => e.currentTarget.style.background = "#1a73e8"}>Insert</button>
+                          )}
+                          <button onClick={() => {
+                              setEditingSignature(true);
+                              // Pre-fill editor with saved HTML after it mounts
+                              setTimeout(() => {
+                                if (signatureEditorRef.current) signatureEditorRef.current.innerHTML = signatureHtml;
+                              }, 0);
+                            }}
+                            style={{ flex: 1, padding: "6px 14px", borderRadius: 4, border: "1px solid #dadce0", background: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                            onMouseLeave={e => e.currentTarget.style.background = "#fff"}>{signatureHtml ? "Edit" : "Create"}</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
                 onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
                 onMouseLeave={e => e.currentTarget.style.background = "none"}
               >
@@ -1380,15 +1785,20 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
               </button>
               <div style={{ flex: 1 }} />
               <button
+                title="Discard draft"
+                onClick={handleClose}
                 style={{
                   background: "none",
                   border: "none",
                   cursor: "pointer",
                   padding: "6px 8px",
+                  borderRadius: "50%",
                   color: "#5f6368",
                   display: "flex",
                   alignItems: "center",
                 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
               >
                 <MdDelete size={18} />
               </button>
@@ -1671,8 +2081,29 @@ function EmailDetail({
   const [inlineKey, setInlineKey] = useState(0); // bumped on each open to remount RichTextEditor
   const [showInlineFormatting, setShowInlineFormatting] = useState(false);
   const [inlineContacts, setInlineContacts] = useState([]);
+  const inlineEditorRef = useRef(null);
   const inlineBodyRef = useRef(null);
   const lastForwardBodyRef = useRef(""); // updated whenever a card's Forward is clicked
+  const inlineSignaturePopoverRef = useRef(null);
+  const inlineSignatureEditorRef = useRef(null);
+  const inlineSignatureImageInputRef = useRef(null);
+  const [showInlineSignaturePopover, setShowInlineSignaturePopover] = useState(false);
+  const [inlineSignatureHtml, setInlineSignatureHtml] = useState(
+    () => localStorage.getItem("compose_signature_html") || ""
+  );
+  const [editingInlineSignature, setEditingInlineSignature] = useState(false);
+
+  // Close inline signature popover on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (inlineSignaturePopoverRef.current && !inlineSignaturePopoverRef.current.contains(e.target))  {
+        setShowInlineSignaturePopover(false);
+        setEditingInlineSignature(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -2315,6 +2746,7 @@ function EmailDetail({
 
             {/* Body + formatting toolbar */}
             <RichTextEditor
+              ref={inlineEditorRef}
               key={inlineKey}
               initialHTML={inlineInitialBody}
               onChange={setInlineBodyHtml}
@@ -2323,49 +2755,133 @@ function EmailDetail({
             />
 
             {/* Footer */}
-            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderTop: "0.5px solid #e0e0e0" }}>
-              <button
-                onClick={handleInlineSend}
-                style={{
-                  background: "#1a73e8",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: 20,
-                  padding: "8px 20px",
-                  fontSize: 13,
-                  fontWeight: 500,
-                  cursor: "pointer",
-                }}
-              >
-                Send
-              </button>
-              {/* Aa — toggle rich text toolbar */}
-              <button
-                onClick={() => setShowInlineFormatting(v => !v)}
-                title="Formatting options"
-                style={{
-                  background: showInlineFormatting ? "#e8f0fe" : "none",
-                  border: "none",
-                  cursor: "pointer",
-                  borderRadius: 4,
-                  padding: "4px 7px",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: showInlineFormatting ? "#1967d2" : "#5f6368",
-                  fontFamily: "Arial, sans-serif",
-                }}
+            <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 16px", borderTop: "0.5px solid #e0e0e0", flexWrap: "wrap" }}>
+              <button onClick={handleInlineSend} style={{ background: "#1a73e8", color: "#fff", border: "none", borderRadius: 20, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", flexShrink: 0 }}>Send</button>
+
+              {/* Aa */}
+              <button onClick={() => setShowInlineFormatting(v => !v)} title="Formatting options"
+                style={{ background: showInlineFormatting ? "#e8f0fe" : "none", border: "none", cursor: "pointer", borderRadius: 4, padding: "5px 8px", fontSize: 13, fontWeight: 700, color: showInlineFormatting ? "#1967d2" : "#5f6368", fontFamily: "Arial, sans-serif", lineHeight: 1, display: "flex", alignItems: "center", gap: 1 }}
                 onMouseEnter={e => { if (!showInlineFormatting) e.currentTarget.style.background = "#f1f3f4"; }}
-                onMouseLeave={e => { if (!showInlineFormatting) e.currentTarget.style.background = showInlineFormatting ? "#e8f0fe" : "none"; }}
-              >
-                Aa
-              </button>
-              <button
-                onClick={handleInlineDiscard}
-                title="Discard draft"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 6, marginLeft: "auto" }}
-              >
-                <MdDelete size={18} />
-              </button>
+                onMouseLeave={e => { if (!showInlineFormatting) e.currentTarget.style.background = "none"; }}
+              ><span style={{ fontSize: 15, fontWeight: 700 }}>A</span><span style={{ fontSize: 11, fontWeight: 600 }}>a</span></button>
+
+              {/* Attach */}
+              <button title="Attach files" onClick={() => { const i = document.createElement("input"); i.type = "file"; i.multiple = true; i.onchange = () => {}; i.click(); }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              ><MdAttachFile size={18} /></button>
+
+              {/* Insert Link */}
+              <button title="Insert link" onClick={() => inlineEditorRef.current?.openLinkDialog()}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              ><MdInsertLink size={18} /></button>
+
+              {/* Emoji */}
+              <button title="Insert emoji" onClick={() => inlineEditorRef.current?.openEmojiPicker()}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center", fontSize: 16 }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >😊</button>
+
+              {/* Insert Image */}
+              <button title="Insert image" onClick={() => inlineEditorRef.current?.triggerImageInsert()}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              ><MdImage size={18} /></button>
+
+              {/* Signature */}
+              <div style={{ position: "relative" }} ref={inlineSignaturePopoverRef}>
+                <button title="Insert signature" onClick={() => { setEditingInlineSignature(false); setShowInlineSignaturePopover(v => !v); }}
+                  style={{ background: showInlineSignaturePopover ? "#e8f0fe" : "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: showInlineSignaturePopover ? "#1967d2" : "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => { if (!showInlineSignaturePopover) e.currentTarget.style.background = "#f1f3f4"; }}
+                  onMouseLeave={e => { if (!showInlineSignaturePopover) e.currentTarget.style.background = "none"; }}
+                ><MdDraw size={18} /></button>
+                {showInlineSignaturePopover && (
+                  <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, zIndex: 500, background: "#fff", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.18)", border: "1px solid #e0e0e0", width: 300, padding: "14px 16px" }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: "#202124", marginBottom: 10 }}>Signature</div>
+                    {editingInlineSignature ? (
+                      <>
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, marginBottom: 4 }}>
+                          {[{ cmd: "bold", label: <b>B</b> }, { cmd: "italic", label: <i>I</i> }, { cmd: "underline", label: <u>U</u> }].map(({ cmd, label }) => (
+                            <button key={cmd} onMouseDown={e => { e.preventDefault(); inlineSignatureEditorRef.current?.focus(); document.execCommand(cmd); }}
+                              style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 3, fontSize: 13, color: "#444746" }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                              onMouseLeave={e => e.currentTarget.style.background = "none"}>{label}</button>
+                          ))}
+                          <div style={{ width: 1, height: 14, background: "#e0e0e0", margin: "0 2px" }} />
+                          <input ref={inlineSignatureImageInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                            onChange={e => {
+                              const file = e.target.files?.[0]; if (!file) return;
+                              const reader = new FileReader();
+                              reader.onload = ev => { inlineSignatureEditorRef.current?.focus(); document.execCommand("insertHTML", false, `<img src="${ev.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`); };
+                              reader.readAsDataURL(file); e.target.value = "";
+                            }} />
+                          <button onMouseDown={e => { e.preventDefault(); inlineSignatureImageInputRef.current?.click(); }}
+                            style={{ background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: 3, color: "#444746", display: "flex", alignItems: "center" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                            onMouseLeave={e => e.currentTarget.style.background = "none"} title="Insert image"><MdImage size={15} /></button>
+                        </div>
+                        <div ref={inlineSignatureEditorRef} contentEditable suppressContentEditableWarning onInput={() => {}}
+                          data-placeholder="Type your signature or insert an image..."
+                          style={{ minHeight: 80, maxHeight: 160, overflowY: "auto", border: "1px solid #dadce0", borderRadius: 4, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", outline: "none", lineHeight: 1.5, marginBottom: 10 }}
+                          onFocus={e => e.currentTarget.style.borderColor = "#1a73e8"}
+                          onBlur={e => e.currentTarget.style.borderColor = "#dadce0"} />
+                        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                          <button onClick={() => setEditingInlineSignature(false)}
+                            style={{ padding: "6px 14px", borderRadius: 4, border: "1px solid #dadce0", background: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                            onMouseLeave={e => e.currentTarget.style.background = "#fff"}>Cancel</button>
+                          <button onClick={() => {
+                              const html = inlineSignatureEditorRef.current?.innerHTML || "";
+                              localStorage.setItem("compose_signature_html", html);
+                              setInlineSignatureHtml(html);
+                              setEditingInlineSignature(false);
+                            }}
+                            style={{ padding: "6px 14px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#1765cc"}
+                            onMouseLeave={e => e.currentTarget.style.background = "#1a73e8"}>Save</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        {inlineSignatureHtml ? (
+                          <div dangerouslySetInnerHTML={{ __html: inlineSignatureHtml }}
+                            style={{ fontSize: 13, color: "#202124", background: "#f8f9fa", borderRadius: 4, padding: "8px 10px", marginBottom: 10, maxHeight: 120, overflowY: "auto", wordBreak: "break-word" }} />
+                        ) : (
+                          <div style={{ fontSize: 13, color: "#5f6368", marginBottom: 10 }}>No signature set.</div>
+                        )}
+                        <div style={{ display: "flex", gap: 8 }}>
+                          {inlineSignatureHtml && (
+                            <button onClick={() => {
+                                const html = `<br/><div style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${inlineSignatureHtml}</div>`;
+                                const el = document.querySelector('[data-placeholder="Write your message..."]');
+                                if (el) { el.focus(); const sel = window.getSelection(); const range = document.createRange(); range.selectNodeContents(el); range.collapse(false); sel.removeAllRanges(); sel.addRange(range); document.execCommand("insertHTML", false, html); setInlineBodyHtml(el.innerHTML); }
+                                setShowInlineSignaturePopover(false);
+                              }}
+                              style={{ flex: 1, padding: "6px 14px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                              onMouseEnter={e => e.currentTarget.style.background = "#1765cc"}
+                              onMouseLeave={e => e.currentTarget.style.background = "#1a73e8"}>Insert</button>
+                          )}
+                          <button onClick={() => { setEditingInlineSignature(true); setTimeout(() => { if (inlineSignatureEditorRef.current) inlineSignatureEditorRef.current.innerHTML = inlineSignatureHtml; }, 0); }}
+                            style={{ flex: 1, padding: "6px 14px", borderRadius: 4, border: "1px solid #dadce0", background: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit" }}
+                            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                            onMouseLeave={e => e.currentTarget.style.background = "#fff"}>{inlineSignatureHtml ? "Edit" : "Create"}</button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <button onClick={handleInlineDiscard} title="Discard draft"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 6, marginLeft: "auto", borderRadius: "50%" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              ><MdDelete size={18} /></button>
             </div>
           </div>
         ) : (
