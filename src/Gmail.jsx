@@ -2873,6 +2873,8 @@ export default function GmailUI() {
     queryFn: () => fetchEmailList(activeNav, currentPage),
     // Keep previous page's data visible while the next page loads
     placeholderData: (prev) => prev,
+    staleTime: 60_000,        // consider fresh for 1 minute
+    refetchInterval: 60_000,  // poll every 60 seconds for new messages
   });
 
   const isSearching = debouncedSearch.trim() !== "";
@@ -2897,21 +2899,24 @@ export default function GmailUI() {
   const inboxData = useQuery({
     queryKey: emailListKey("Inbox", 1),
     queryFn: () => fetchEmailList("Inbox", 1),
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
   const inboxUnreadCount = (inboxData.data?.emails ?? []).filter((e) => e.unread).length;
 
   const draftsData = useQuery({
     queryKey: emailListKey("Drafts", 1),
     queryFn: () => fetchEmailList("Drafts", 1),
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
   const draftsCount = draftsData.data?.total ?? 0;
 
   const spamData = useQuery({
     queryKey: emailListKey("Spam", 1),
     queryFn: () => fetchEmailList("Spam", 1),
-    staleTime: 5 * 60_000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
   });
   const spamCount = spamData.data?.total ?? 0;
 
