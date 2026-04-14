@@ -1648,6 +1648,9 @@ function EmailDetail({
   onReply,
   onForward,
   onDelete,
+  onToast,
+  onRestoreEmail,
+  onUpdateEmail,
   onMarkUnread,
   onPrev,
   onNext,
@@ -1695,23 +1698,68 @@ function EmailDetail({
   };
 
   const handleArchive = async () => {
+    const savedEmail = email;
     await act("archive");
+    onToast?.("Conversation archived.", {
+      label: "Undo",
+      onClick: () => {
+        onRestoreEmail?.(savedEmail);
+        fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+        onToast?.("Action undone.");
+      },
+    });
     onDelete();
   };
   const handleSpam = async () => {
+    const savedEmail = email;
     await act("spam");
+    onToast?.("Conversation reported as spam.", {
+      label: "Undo",
+      onClick: () => {
+        onRestoreEmail?.(savedEmail);
+        fetch(`/emails/${savedEmail.id}/not-spam`, { method: "POST" }).catch(() => {});
+        onToast?.("Action undone.");
+      },
+    });
     onDelete();
   };
   const handleDelete = async () => {
+    const savedEmail = email;
     await act("trash");
+    onToast?.("Conversation moved to Trash.", {
+      label: "Undo",
+      onClick: () => {
+        onRestoreEmail?.(savedEmail);
+        fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+        onToast?.("Action undone.");
+      },
+    });
     onDelete();
   };
   const handleUnread = async () => {
+    const emailId = email.id;
     await act("mark-unread");
+    onToast?.("Marked as unread.", {
+      label: "Undo",
+      onClick: () => {
+        onUpdateEmail?.({ unread: false });
+        fetch(`/emails/${emailId}/mark-read${folderParam}`, { method: "POST" }).catch(() => {});
+        onToast?.("Action undone.");
+      },
+    });
     onMarkUnread();
   };
   const handleRead = async () => {
+    const emailId = email.id;
     await act("mark-read");
+    onToast?.("Marked as read.", {
+      label: "Undo",
+      onClick: () => {
+        onUpdateEmail?.({ unread: true });
+        fetch(`/emails/${emailId}/mark-unread${folderParam}`, { method: "POST" }).catch(() => {});
+        onToast?.("Action undone.");
+      },
+    });
     onClose();
     setShowMoreMenu(false);
   };
@@ -1882,8 +1930,8 @@ function EmailDetail({
         {/* Primary actions */}
         {folder === "spam" ? (
           <>
-            {iconBtn(async () => { await act("not-spam"); onDelete(); }, "Not spam", <MdInbox size={20} />)}
-            {iconBtn(async () => { await act("delete-forever"); onDelete(); }, "Delete forever", <MdDelete size={20} />)}
+            {iconBtn(async () => { await act("not-spam"); onToast?.("Conversation moved to Inbox."); onDelete(); }, "Not spam", <MdInbox size={20} />)}
+            {iconBtn(async () => { await act("delete-forever"); onToast?.("Conversation permanently deleted."); onDelete(); }, "Delete forever", <MdDelete size={20} />)}
           </>
         ) : (
           <>
@@ -2685,10 +2733,19 @@ export default function GmailUI() {
 
   const markCheckedRead = () => {
     const ids = [...checkedIds];
+    const count = ids.length;
     patchList((list) =>
       list.map((em) => (checkedIds.has(em.id) ? { ...em, unread: false } : em)),
     );
     setCheckedIds(new Set());
+    showToast(`${count} conversation${count !== 1 ? "s" : ""} marked as read.`, {
+      label: "Undo",
+      onClick: () => {
+        patchList((list) => list.map((em) => (ids.includes(em.id) ? { ...em, unread: true } : em)));
+        ids.forEach((id) => fetch(`/emails/${id}/mark-unread${folderQS}`, { method: "POST" }).catch(() => {}));
+        showToast("Action undone.");
+      },
+    });
     ids.forEach((id) =>
       fetch(`/emails/${id}/mark-read${folderQS}`, { method: "POST" }).catch(() => {}),
     );
@@ -2696,10 +2753,19 @@ export default function GmailUI() {
 
   const markCheckedUnread = () => {
     const ids = [...checkedIds];
+    const count = ids.length;
     patchList((list) =>
       list.map((em) => (checkedIds.has(em.id) ? { ...em, unread: true } : em)),
     );
     setCheckedIds(new Set());
+    showToast(`${count} conversation${count !== 1 ? "s" : ""} marked as unread.`, {
+      label: "Undo",
+      onClick: () => {
+        patchList((list) => list.map((em) => (ids.includes(em.id) ? { ...em, unread: false } : em)));
+        ids.forEach((id) => fetch(`/emails/${id}/mark-read${folderQS}`, { method: "POST" }).catch(() => {}));
+        showToast("Action undone.");
+      },
+    });
     ids.forEach((id) =>
       fetch(`/emails/${id}/mark-unread${folderQS}`, { method: "POST" }).catch(() => {}),
     );
@@ -2707,8 +2773,18 @@ export default function GmailUI() {
 
   const archiveChecked = () => {
     const ids = [...checkedIds];
+    const count = ids.length;
+    const snapshot = emails.filter((em) => checkedIds.has(em.id));
     patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
     setCheckedIds(new Set());
+    showToast(`${count} conversation${count !== 1 ? "s" : ""} archived.`, {
+      label: "Undo",
+      onClick: () => {
+        patchList((list) => [...snapshot, ...list]);
+        ids.forEach((id) => fetch(`/emails/${id}/restore`, { method: "POST" }).catch(() => {}));
+        showToast("Action undone.");
+      },
+    });
     ids.forEach((id) =>
       fetch(`/emails/${id}/archive${folderQS}`, { method: "POST" }).catch(() => {}),
     );
@@ -2716,8 +2792,18 @@ export default function GmailUI() {
 
   const deleteChecked = () => {
     const ids = [...checkedIds];
+    const count = ids.length;
+    const snapshot = emails.filter((em) => checkedIds.has(em.id));
     patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
     setCheckedIds(new Set());
+    showToast(`${count} conversation${count !== 1 ? "s" : ""} moved to Trash.`, {
+      label: "Undo",
+      onClick: () => {
+        patchList((list) => [...snapshot, ...list]);
+        ids.forEach((id) => fetch(`/emails/${id}/restore`, { method: "POST" }).catch(() => {}));
+        showToast("Action undone.");
+      },
+    });
     ids.forEach((id) =>
       fetch(`/emails/${id}/trash${folderQS}`, { method: "POST" }).catch(() => {}),
     );
@@ -2725,8 +2811,10 @@ export default function GmailUI() {
 
   const deleteForeverChecked = () => {
     const ids = [...checkedIds];
+    const count = ids.length;
     patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
     setCheckedIds(new Set());
+    showToast(`${count} conversation${count !== 1 ? "s" : ""} permanently deleted.`);
     ids.forEach((id) =>
       fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}),
     );
@@ -2734,8 +2822,10 @@ export default function GmailUI() {
 
   const restoreChecked = () => {
     const ids = [...checkedIds];
+    const count = ids.length;
     patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
     setCheckedIds(new Set());
+    showToast(`${count} conversation${count !== 1 ? "s" : ""} restored to Inbox.`);
     ids.forEach((id) =>
       fetch(`/emails/${id}/restore`, { method: "POST" }).catch(() => {}),
     );
@@ -3302,10 +3392,15 @@ export default function GmailUI() {
                   onReply={(draft) => handlePendingSend(draft)}
                   onForward={(draft) => handlePendingSend(draft)}
                   onDelete={() => {
-                    patchList((list) =>
-                      list.filter((em) => em.id !== selectedEmail.id),
-                    );
+                    patchList((list) => list.filter((em) => em.id !== selectedEmail.id));
                     setSelectedId(null);
+                  }}
+                  onToast={showToast}
+                  onRestoreEmail={(emailData) => {
+                    patchList((list) => [emailData, ...list]);
+                  }}
+                  onUpdateEmail={(updates) => {
+                    patchList((list) => list.map((em) => em.id === selectedEmail.id ? { ...em, ...updates } : em));
                   }}
                   onMarkUnread={() => {
                     patchList((list) =>
@@ -3560,8 +3655,10 @@ export default function GmailUI() {
                             Icon: MdInbox,
                             action: () => {
                               const ids = [...checkedIds];
+                              const count = ids.length;
                               patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
                               setCheckedIds(new Set());
+                              showToast(`${count} conversation${count !== 1 ? "s" : ""} moved to Inbox.`);
                               ids.forEach((id) => fetch(`/emails/${id}/not-spam`, { method: "POST" }).catch(() => {}));
                             },
                           },
@@ -3570,8 +3667,10 @@ export default function GmailUI() {
                             Icon: MdDelete,
                             action: () => {
                               const ids = [...checkedIds];
+                              const count = ids.length;
                               patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
                               setCheckedIds(new Set());
+                              showToast(`${count} conversation${count !== 1 ? "s" : ""} permanently deleted.`);
                               ids.forEach((id) => fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}));
                             },
                           },
@@ -3883,9 +3982,11 @@ export default function GmailUI() {
                           onMouseEnter={(e) => { e.currentTarget.style.textDecoration = "underline"; }}
                           onMouseLeave={(e) => { e.currentTarget.style.textDecoration = "none"; }}
                           onClick={() => {
-                            const allIds = new Set(filteredEmails.map((e) => e.id));
+                            const allIds = [...filteredEmails.map((e) => e.id)];
+                            const count = allIds.length;
                             patchList(() => []);
                             setCheckedIds(new Set());
+                            showToast(`${count} conversation${count !== 1 ? "s" : ""} permanently deleted.`);
                             allIds.forEach((id) =>
                               fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}),
                             );
@@ -4234,6 +4335,7 @@ export default function GmailUI() {
                                     action: async (e) => {
                                       e.stopPropagation();
                                       patchList((list) => list.filter((em) => em.id !== email.id));
+                                      showToast("Conversation permanently deleted.");
                                       await fetch(`/emails/${email.id}/delete-forever`, { method: "POST" });
                                     },
                                   },
@@ -4243,6 +4345,7 @@ export default function GmailUI() {
                                     action: async (e) => {
                                       e.stopPropagation();
                                       patchList((list) => list.filter((em) => em.id !== email.id));
+                                      showToast("Conversation restored to Inbox.");
                                       await fetch(`/emails/${email.id}/restore`, { method: "POST" });
                                     },
                                   },
@@ -4252,7 +4355,9 @@ export default function GmailUI() {
                                     title: "Not spam",
                                     action: async (e) => {
                                       e.stopPropagation();
+                                      const savedEmail = email;
                                       patchList((list) => list.filter((em) => em.id !== email.id));
+                                      showToast("Conversation moved to Inbox.");
                                       await fetch(`/emails/${email.id}/not-spam`, { method: "POST" });
                                     },
                                   },
@@ -4262,6 +4367,7 @@ export default function GmailUI() {
                                     action: async (e) => {
                                       e.stopPropagation();
                                       patchList((list) => list.filter((em) => em.id !== email.id));
+                                      showToast("Conversation permanently deleted.");
                                       await fetch(`/emails/${email.id}/delete-forever`, { method: "POST" });
                                     },
                                   },
@@ -4270,8 +4376,17 @@ export default function GmailUI() {
                                     title: "Mark as unread",
                                     action: async (e) => {
                                       e.stopPropagation();
-                                      patchList((list) => list.map((em) => em.id === email.id ? { ...em, unread: true } : em));
-                                      await fetch(`/emails/${email.id}/mark-unread?folder=spam`, { method: "POST" });
+                                      const emailId = email.id;
+                                      patchList((list) => list.map((em) => em.id === emailId ? { ...em, unread: true } : em));
+                                      showToast("Marked as unread.", {
+                                        label: "Undo",
+                                        onClick: () => {
+                                          patchList((list) => list.map((em) => em.id === emailId ? { ...em, unread: false } : em));
+                                          fetch(`/emails/${emailId}/mark-read?folder=spam`, { method: "POST" }).catch(() => {});
+                                          showToast("Action undone.");
+                                        },
+                                      });
+                                      await fetch(`/emails/${emailId}/mark-unread?folder=spam`, { method: "POST" });
                                     },
                                   },
                                 ] : [
@@ -4280,10 +4395,19 @@ export default function GmailUI() {
                                     title: "Archive",
                                     action: async (e) => {
                                       e.stopPropagation();
+                                      const savedEmail = email;
                                       patchList((list) =>
                                         list.filter((em) => em.id !== email.id),
                                       );
                                       const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
+                                      showToast("Conversation archived.", {
+                                        label: "Undo",
+                                        onClick: () => {
+                                          patchList((list) => [savedEmail, ...list]);
+                                          fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+                                          showToast("Action undone.");
+                                        },
+                                      });
                                       await fetch(`/emails/${email.id}/archive${fp}`, { method: "POST" });
                                     },
                                   },
@@ -4292,11 +4416,18 @@ export default function GmailUI() {
                                     title: "Delete",
                                     action: async (e) => {
                                       e.stopPropagation();
-                                      patchList((list) =>
-                                        list.filter((em) => em.id !== email.id),
-                                      );
+                                      const savedEmail = email;
+                                      patchList((list) => list.filter((em) => em.id !== savedEmail.id));
+                                      showToast("Conversation moved to Trash.", {
+                                        label: "Undo",
+                                        onClick: () => {
+                                          patchList((list) => [savedEmail, ...list]);
+                                          fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+                                          showToast("Action undone.");
+                                        },
+                                      });
                                       const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
-                                      await fetch(`/emails/${email.id}/trash${fp}`, { method: "POST" });
+                                      await fetch(`/emails/${savedEmail.id}/trash${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -4304,15 +4435,24 @@ export default function GmailUI() {
                                     title: "Mark as unread",
                                     action: async (e) => {
                                       e.stopPropagation();
+                                      const emailId = email.id;
                                       patchList((list) =>
                                         list.map((em) =>
-                                          em.id === email.id
+                                          em.id === emailId
                                             ? { ...em, unread: true }
                                             : em,
                                         ),
                                       );
                                       const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : activeNav === "Spam" ? "?folder=spam" : "";
-                                      await fetch(`/emails/${email.id}/mark-unread${fp}`, { method: "POST" });
+                                      showToast("Marked as unread.", {
+                                        label: "Undo",
+                                        onClick: () => {
+                                          patchList((list) => list.map((em) => em.id === emailId ? { ...em, unread: false } : em));
+                                          fetch(`/emails/${emailId}/mark-read${fp}`, { method: "POST" }).catch(() => {});
+                                          showToast("Action undone.");
+                                        },
+                                      });
+                                      await fetch(`/emails/${emailId}/mark-unread${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
