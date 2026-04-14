@@ -1908,6 +1908,8 @@ function EmailDetail({
         flexDirection: "column",
         background: "#fff",
         minWidth: 0,
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
       {/* Toolbar */}
@@ -2138,9 +2140,11 @@ function EmailDetail({
             fontSize: 13,
           }}
         >
-          <span style={{ marginRight: 4, whiteSpace: "nowrap" }}>
-            {emailPosition} of {totalEmails}
-          </span>
+          {emailPosition != null && totalEmails != null && (
+            <span style={{ marginRight: 4, whiteSpace: "nowrap" }}>
+              {emailPosition} of {totalEmails}
+            </span>
+          )}
           <button
             onClick={onPrev}
             disabled={!onPrev}
@@ -2246,7 +2250,7 @@ function EmailDetail({
       </div>
 
       {/* Scrollable body */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px" }}>
+      <div style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "16px 24px 24px" }}>
         {/* Thread messages — oldest first, current message expanded */}
         {thread.map((msg) => (
           <ThreadMessageCard
@@ -2432,6 +2436,216 @@ async function fetchEmailList(nav, page) {
   return { emails: data.emails || [], total: data.total || 0 };
 }
 
+// ── Folder badge shown on each search result row ─────────────────────────────
+const FOLDER_BADGE = {
+  inbox:   { label: "Inbox",   bg: "#e8f0fe", color: "#1967d2" },
+  sent:    { label: "Sent",    bg: "#e6f4ea", color: "#137333" },
+  drafts:  { label: "Drafts",  bg: "#fce8e6", color: "#c5221f" },
+  trash:   { label: "Trash",   bg: "#f1f3f4", color: "#5f6368" },
+  spam:    { label: "Spam",    bg: "#fef7e0", color: "#b06000" },
+};
+
+function SearchOverlay({
+  query, page, setPage, emails, totalEmails, loading,
+  selectedId, setSelectedId, onClose, showToast, patchList, queryClient,
+}) {
+  const PAGE_SIZE = 50;
+  const totalPages = Math.ceil(totalEmails / PAGE_SIZE) || 1;
+  const pageStart  = totalEmails === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd    = Math.min(page * PAGE_SIZE, totalEmails);
+
+  const selectedEmail = emails.find((e) => e.id === selectedId) || null;
+
+  // Determine the folder for EmailDetail
+  const folderForDetail = selectedEmail?.folder || selectedEmail?.label || "inbox";
+
+  // When an email is selected, show it full-width
+  if (selectedId) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", background: "#fff", borderRadius: "16px 16px 0 0", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", overflow: "hidden", minWidth: 0 }}>
+        {selectedEmail ? (
+          <EmailDetail
+            email={selectedEmail}
+            onClose={() => setSelectedId(null)}
+            onReply={() => {}}
+            onForward={() => {}}
+            onDelete={() => { patchList((list) => list.filter((em) => em.id !== selectedEmail.id)); setSelectedId(null); }}
+            onToast={showToast}
+            onRestoreEmail={(emailData) => patchList((list) => [emailData, ...list])}
+            onUpdateEmail={(updates) => patchList((list) => list.map((em) => em.id === selectedEmail.id ? { ...em, ...updates } : em))}
+            onMarkUnread={() => { patchList((list) => list.map((em) => em.id === selectedEmail.id ? { ...em, unread: true } : em)); setSelectedId(null); }}
+            folder={folderForDetail}
+            emailPosition={null}
+            totalEmails={null}
+            onPrev={null}
+            onNext={null}
+          />
+        ) : (
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", fontSize: 14 }}>Loading…</div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        flex: 1,
+        display: "flex",
+        background: "#f6f8fc",
+        minWidth: 0,
+        overflow: "hidden",
+      }}
+    >
+      {/* Results list — full width */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          background: "#fff",
+          borderRadius: "16px 16px 0 0",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          overflow: "hidden",
+        }}
+      >
+        {/* Results header */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            padding: "10px 16px",
+            borderBottom: "1px solid #e0e0e0",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          <MdSearch size={20} color="#1a73e8" />
+          <span style={{ fontSize: 14, color: "#202124", fontWeight: 500, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            Search results for &ldquo;{query}&rdquo;
+          </span>
+          {!loading && totalEmails > 0 && (
+            <span style={{ fontSize: 13, color: "#5f6368", flexShrink: 0, marginRight: 4 }}>
+              {pageStart}–{pageEnd} of {totalEmails}
+            </span>
+          )}
+          {/* Pagination arrows */}
+          {totalPages > 1 && (
+            <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+              <button
+                onClick={() => { setPage((p) => Math.max(1, p - 1)); setSelectedId(null); }}
+                disabled={page === 1}
+                style={{ background: "none", border: "none", cursor: page === 1 ? "default" : "pointer", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: page === 1 ? "#bdbdbd" : "#5f6368" }}
+              >
+                <MdKeyboardArrowLeft size={18} />
+              </button>
+              <button
+                onClick={() => { setPage((p) => Math.min(totalPages, p + 1)); setSelectedId(null); }}
+                disabled={page === totalPages}
+                style={{ background: "none", border: "none", cursor: page === totalPages ? "default" : "pointer", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: page === totalPages ? "#bdbdbd" : "#5f6368" }}
+              >
+                <MdKeyboardArrowRight size={18} />
+              </button>
+            </div>
+          )}
+          <button
+            onClick={onClose}
+            title="Close search"
+            style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+          >
+            <MdClose size={20} />
+          </button>
+        </div>
+
+        {/* Results body */}
+        <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+          {loading && (
+            <div style={{ padding: 40, textAlign: "center", color: "#5f6368", fontSize: 14 }}>
+              Searching for &ldquo;{query}&rdquo;…
+            </div>
+          )}
+          {!loading && emails.length === 0 && (
+            <div style={{ padding: 48, textAlign: "center" }}>
+              <MdSearch size={48} color="#dadce0" style={{ marginBottom: 12 }} />
+              <div style={{ fontSize: 16, color: "#202124", fontWeight: 500, marginBottom: 6 }}>
+                No results for &ldquo;{query}&rdquo;
+              </div>
+              <div style={{ fontSize: 14, color: "#5f6368" }}>
+                Try different keywords or check for typos.
+              </div>
+            </div>
+          )}
+          {!loading && emails.map((email) => {
+            const badge   = FOLDER_BADGE[email.folder] || FOLDER_BADGE[email.label] || FOLDER_BADGE.inbox;
+            const isSelected = email.id === selectedId;
+            return (
+              <div
+                key={`${email.folder}:${email.id}`}
+                onClick={() => setSelectedId(email.id)}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 12,
+                  padding: "12px 16px",
+                  borderBottom: "0.5px solid #f0f0f0",
+                  cursor: "pointer",
+                  background: isSelected ? "#e8f0fe" : email.unread ? "#fff" : "#f6f8fc",
+                  fontWeight: email.unread ? 600 : 400,
+                  transition: "background 0.1s",
+                  borderLeft: isSelected ? "3px solid #1a73e8" : "3px solid transparent",
+                }}
+                onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "#f2f6fc"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = isSelected ? "#e8f0fe" : email.unread ? "#fff" : "#f6f8fc"; }}
+              >
+                {/* Unread dot */}
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: email.unread ? "#1a73e8" : "transparent", flexShrink: 0, marginTop: 6 }} />
+                {/* Avatar */}
+                <Avatar initials={email.avatar} color={email.avatarColor} size={32} />
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                    <span style={{ fontSize: 13, color: "#202124", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                      {email.senderName || email.sender}
+                    </span>
+                    {/* Folder badge */}
+                    <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 7px", borderRadius: 10, background: badge.bg, color: badge.color, flexShrink: 0, letterSpacing: 0.2 }}>
+                      {badge.label}
+                    </span>
+                    <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0, whiteSpace: "nowrap" }}>
+                      {email.time}
+                    </span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden" }}>
+                    {email.starred && <MdStar size={14} color="#F4B400" style={{ flexShrink: 0 }} />}
+                    <span style={{ fontSize: 13, color: "#202124", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {email.subject}
+                    </span>
+                    <span style={{ color: "#ccc", fontSize: 12, flexShrink: 0 }}>—</span>
+                    <span style={{ fontSize: 13, color: "#5f6368", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {email.preview}
+                    </span>
+                  </div>
+                  {email.hasAttachment && (
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }}>
+                      <MdAttachFile size={13} color="#5f6368" />
+                      <span style={{ fontSize: 12, color: "#5f6368" }}>
+                        {email.attachments?.map(a => a.filename).filter(Boolean).slice(0, 2).join(", ")}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+    </div>
+  );
+}
+
 export default function GmailUI() {
   const queryClient = useQueryClient();
 
@@ -2555,6 +2769,98 @@ export default function GmailUI() {
     toastTimer.current = setTimeout(() => setToast(null), 5000);
   };
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [searchPage, setSearchPage] = useState(1);
+  const [searchSelectedId, setSearchSelectedId] = useState(null);
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [contactSuggestions, setContactSuggestions] = useState([]);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [showAdvancedSearch, setShowAdvancedSearch] = useState(false);
+  const [advancedFields, setAdvancedFields] = useState({ from: "", to: "", subject: "", hasWords: "", noWords: "", hasAttachment: false, dateAfter: "", dateBefore: "" });
+  const searchRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  // Debounce search input — fire backend query 400ms after user stops typing
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setSearchPage(1); setSearchSelectedId(null); }, 400);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Fetch contact suggestions as user types
+  useEffect(() => {
+    if (!search.trim()) { setContactSuggestions([]); return; }
+    const t = setTimeout(() => {
+      fetch(`/contacts?q=${encodeURIComponent(search.trim())}`)
+        .then(r => r.json())
+        .then(d => setContactSuggestions(Array.isArray(d) ? d.slice(0, 5) : []))
+        .catch(() => {});
+    }, 200);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  // Close search dropdown when clicking outside
+  useEffect(() => {
+    const handler = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) {
+        setSearchFocused(false);
+        setShowAdvancedSearch(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const loadRecentSearches = () => {
+    fetch("/recent-searches")
+      .then(r => r.json())
+      .then(d => setRecentSearches(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  };
+
+  const saveRecentSearch = (q) => {
+    if (!q.trim()) return;
+    // Optimistic update
+    setRecentSearches(prev => [q.trim(), ...prev.filter(r => r !== q.trim())].slice(0, 8));
+    fetch("/recent-searches", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: q.trim() }),
+    }).catch(() => {});
+  };
+
+  const removeRecentSearch = (q, e) => {
+    e.stopPropagation();
+    setRecentSearches(prev => prev.filter(r => r !== q));
+    fetch(`/recent-searches/${encodeURIComponent(q)}`, { method: "DELETE" }).catch(() => {});
+  };
+
+  const commitSearch = (q) => {
+    const trimmed = q.trim();
+    if (!trimmed) return;
+    saveRecentSearch(trimmed);
+    setSearch(trimmed);
+    setDebouncedSearch(trimmed);
+    setSearchPage(1);
+    setSearchSelectedId(null);
+    setSearchFocused(false);
+    setShowAdvancedSearch(false);
+    searchInputRef.current?.blur();
+  };
+
+  const commitAdvancedSearch = () => {
+    const parts = [];
+    if (advancedFields.from.trim())       parts.push(`from:${advancedFields.from.trim()}`);
+    if (advancedFields.to.trim())         parts.push(`to:${advancedFields.to.trim()}`);
+    if (advancedFields.subject.trim())    parts.push(`subject:${advancedFields.subject.trim()}`);
+    if (advancedFields.hasWords.trim())   parts.push(advancedFields.hasWords.trim());
+    if (advancedFields.noWords.trim())    parts.push(`-${advancedFields.noWords.trim()}`);
+    if (advancedFields.hasAttachment)     parts.push("has:attachment");
+    if (advancedFields.dateAfter.trim())  parts.push(`after:${advancedFields.dateAfter.trim()}`);
+    if (advancedFields.dateBefore.trim()) parts.push(`before:${advancedFields.dateBefore.trim()}`);
+    const q = parts.join(" ");
+    if (q) commitSearch(q);
+    setShowAdvancedSearch(false);
+  };
   const [sidebarOpen, setSidebarOpen] = useState(
     () => localStorage.getItem("sidebarOpen") !== "false"
   );
@@ -2562,15 +2868,29 @@ export default function GmailUI() {
   const isExpanded = sidebarOpen || sidebarHovered;
 
   // ── Email list via React Query ──────────────────────────────────────────────
-  const { data: emailData, isLoading: loading } = useQuery({
+  const { data: emailData, isLoading: folderLoading } = useQuery({
     queryKey: emailListKey(activeNav, currentPage),
     queryFn: () => fetchEmailList(activeNav, currentPage),
     // Keep previous page's data visible while the next page loads
     placeholderData: (prev) => prev,
   });
 
-  const emails = emailData?.emails ?? [];
-  const totalEmails = emailData?.total ?? 0;
+  const isSearching = debouncedSearch.trim() !== "";
+
+  // Backend search query — only fires when there is a search term
+  const { data: searchData, isLoading: searchLoading } = useQuery({
+    queryKey: ["search", debouncedSearch, searchPage],
+    queryFn: () =>
+      fetch(`/emails/search?q=${encodeURIComponent(debouncedSearch)}&page=${searchPage}`)
+        .then((r) => r.json())
+        .then((d) => (Array.isArray(d) ? { emails: d, total: d.length } : { emails: d.emails ?? [], total: d.total ?? 0 })),
+    enabled: isSearching,
+    placeholderData: (prev) => prev,
+  });
+
+  const emails = isSearching ? (searchData?.emails ?? []) : (emailData?.emails ?? []);
+  const totalEmails = isSearching ? (searchData?.total ?? 0) : (emailData?.total ?? 0);
+  const loading = isSearching ? searchLoading : folderLoading;
 
   // Always keep a live unread count for Inbox regardless of which folder is active
   // staleTime=5min so background refetches don't pile up IMAP connections
@@ -2617,10 +2937,16 @@ export default function GmailUI() {
   }, [emails, activeNav]);
 
   // Helper: patch list cache in-place (for optimistic updates)
-  const patchList = (updater) =>
+  const patchList = (updater) => {
+    if (isSearching) {
+      queryClient.setQueryData(["search", debouncedSearch, searchPage], (old) =>
+        old ? { ...old, emails: updater(old.emails) } : old,
+      );
+    }
     queryClient.setQueryData(emailListKey(activeNav, currentPage), (old) =>
       old ? { ...old, emails: updater(old.emails) } : old,
     );
+  };
 
   // Prefetch email detail on hover so it's ready before you click
   const prefetchDetail = (id) => {
@@ -2706,18 +3032,14 @@ export default function GmailUI() {
     });
   };
 
-  const filteredEmails = emails.filter((e) => {
-    if (search === "") return true;
-    return (
-      e.sender.toLowerCase().includes(search.toLowerCase()) ||
-      e.subject.toLowerCase().includes(search.toLowerCase())
-    );
-  });
+  const filteredEmails = emails;
 
+  const activePage = isSearching ? searchPage : currentPage;
+  const setActivePage = isSearching ? setSearchPage : setCurrentPage;
   const totalPages = Math.ceil(totalEmails / PAGE_SIZE) || 1;
   const paginatedEmails = filteredEmails;
-  const pageStart = totalEmails === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
-  const pageEnd = Math.min(currentPage * PAGE_SIZE, totalEmails);
+  const pageStart = totalEmails === 0 ? 0 : (activePage - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(activePage * PAGE_SIZE, totalEmails);
 
   const allChecked =
     filteredEmails.length > 0 &&
@@ -2987,39 +3309,278 @@ export default function GmailUI() {
 
         {/* Search bar */}
         <div
+          ref={searchRef}
           style={{
             flex: 1,
-            display: "flex",
-            alignItems: "center",
-            background: "#eaf1fb",
-            borderRadius: 24,
-            padding: "8px 16px",
-            gap: 10,
             maxWidth: 720,
+            position: "relative",
           }}
         >
-          <MdSearch size={20} color="#5f6368" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search mail"
+          {/* Input row */}
+          <div
             style={{
-              border: "none",
-              background: "transparent",
-              outline: "none",
-              fontSize: 16,
-              color: "#202124",
-              width: "100%",
-              fontFamily: "inherit",
+              display: "flex",
+              alignItems: "center",
+              background: searchFocused ? "#fff" : "#eaf1fb",
+              borderRadius: searchFocused && (search || recentSearches.length > 0 || showAdvancedSearch) ? "24px 24px 0 0" : 24,
+              padding: "8px 8px 8px 16px",
+              gap: 8,
+              boxShadow: searchFocused ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
+              transition: "background 0.15s, box-shadow 0.15s",
             }}
-          />
-          {search && (
-            <MdClose
-              onClick={() => setSearch("")}
-              size={18}
-              color="#5f6368"
-              style={{ cursor: "pointer", flexShrink: 0 }}
+          >
+            <MdSearch
+              size={20}
+              color={searchFocused ? "#1a73e8" : "#5f6368"}
+              style={{ flexShrink: 0, cursor: "pointer" }}
+              onClick={() => search.trim() && commitSearch(search)}
             />
+            <input
+              ref={searchInputRef}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              onFocus={() => { setSearchFocused(true); setShowAdvancedSearch(false); loadRecentSearches(); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { commitSearch(search); }
+                else if (e.key === "Escape") {
+                  if (showAdvancedSearch) { setShowAdvancedSearch(false); return; }
+                  setSearch(""); setDebouncedSearch(""); setSearchPage(1); setSearchSelectedId(null); setSearchFocused(false);
+                }
+              }}
+              placeholder="Search mail"
+              style={{
+                border: "none",
+                background: "transparent",
+                outline: "none",
+                fontSize: 16,
+                color: "#202124",
+                width: "100%",
+                fontFamily: "inherit",
+              }}
+            />
+            {search && (
+              <button
+                onClick={() => { setSearch(""); setDebouncedSearch(""); setSearchPage(1); setSearchSelectedId(null); searchInputRef.current?.focus(); }}
+                style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <MdClose size={18} />
+              </button>
+            )}
+            {/* Advanced search toggle */}
+            <Tooltip label="Show search options" position="bottom">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowAdvancedSearch(v => !v); setSearchFocused(true); }}
+                style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <MdKeyboardArrowDown size={20} style={{ transform: showAdvancedSearch ? "rotate(180deg)" : "none", transition: "transform 0.2s" }} />
+              </button>
+            </Tooltip>
+          </div>
+
+          {/* Suggestions dropdown */}
+          {searchFocused && !showAdvancedSearch && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              background: "#fff",
+              borderRadius: "0 0 24px 24px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+              zIndex: 2000,
+              overflow: "hidden",
+              paddingBottom: 8,
+            }}>
+              {/* Recent searches (when input is empty) */}
+              {!search.trim() && recentSearches.length > 0 && (
+                <>
+                  <div style={{ padding: "10px 20px 4px", fontSize: 12, color: "#5f6368", fontWeight: 500, letterSpacing: 0.3 }}>
+                    RECENT SEARCHES
+                  </div>
+                  {recentSearches.map((r) => (
+                    <div
+                      key={r}
+                      onClick={() => commitSearch(r)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", cursor: "pointer", userSelect: "none" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <MdSearch size={18} color="#5f6368" style={{ flexShrink: 0 }} />
+                      <span style={{ flex: 1, fontSize: 14, color: "#202124" }}>{r}</span>
+                      <button
+                        onClick={(e) => removeRecentSearch(r, e)}
+                        style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368" }}
+                        onMouseEnter={(e) => { e.stopPropagation(); e.currentTarget.style.background = "#e0e0e0"; }}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                        title="Remove"
+                      >
+                        <MdClose size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+
+              {/* Typing — show suggestions */}
+              {search.trim() && (
+                <>
+                  {/* Search this query */}
+                  <div
+                    onClick={() => commitSearch(search)}
+                    style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <MdSearch size={18} color="#1a73e8" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: "#202124" }}>Search for <b>{search}</b></span>
+                  </div>
+
+                  {/* Filter shortcuts */}
+                  {[
+                    { label: `From: ${search}`, query: `from:${search}`, icon: "👤" },
+                    { label: `Subject: ${search}`, query: `subject:${search}`, icon: "📋" },
+                    { label: `Has attachment + ${search}`, query: `${search} has:attachment`, icon: "📎" },
+                  ].map(({ label, query, icon }) => (
+                    <div
+                      key={query}
+                      onClick={() => commitSearch(query)}
+                      style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", cursor: "pointer" }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                    >
+                      <span style={{ width: 18, textAlign: "center", fontSize: 14, flexShrink: 0 }}>{icon}</span>
+                      <span style={{ fontSize: 14, color: "#5f6368" }}>{label}</span>
+                    </div>
+                  ))}
+
+                  {/* Contact suggestions */}
+                  {contactSuggestions.length > 0 && (
+                    <>
+                      <div style={{ height: 1, background: "#f1f3f4", margin: "4px 16px" }} />
+                      <div style={{ padding: "6px 20px 4px", fontSize: 12, color: "#5f6368", fontWeight: 500, letterSpacing: 0.3 }}>
+                        PEOPLE
+                      </div>
+                      {contactSuggestions.map((c) => (
+                        <div
+                          key={c.email}
+                          onClick={() => commitSearch(`from:${c.email}`)}
+                          style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", cursor: "pointer" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                        >
+                          <div style={{ width: 32, height: 32, borderRadius: "50%", background: "#1a73e8", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+                            {(c.name || c.email)[0].toUpperCase()}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, color: "#202124", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name || c.email}</div>
+                            <div style={{ fontSize: 12, color: "#5f6368", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.email}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Empty state — no recent, no query */}
+              {!search.trim() && recentSearches.length === 0 && (
+                <div style={{ padding: "20px 20px", fontSize: 14, color: "#5f6368", textAlign: "center" }}>
+                  Start typing to search your mail
+                </div>
+              )}
+
+              {/* Footer */}
+              <div style={{ borderTop: "1px solid #f1f3f4", margin: "6px 0 0", padding: "8px 16px 4px", display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {["has:attachment", "is:unread", "is:starred", "label:inbox"].map((chip) => (
+                  <button
+                    key={chip}
+                    onClick={() => commitSearch(chip)}
+                    style={{ fontSize: 12, padding: "4px 12px", borderRadius: 14, border: "1px solid #dadce0", background: "#fff", color: "#202124", cursor: "pointer", fontFamily: "inherit" }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}
+                  >
+                    {chip}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Advanced search panel */}
+          {showAdvancedSearch && (
+            <div style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              background: "#fff",
+              borderRadius: "0 0 16px 16px",
+              boxShadow: "0 4px 16px rgba(0,0,0,0.18)",
+              zIndex: 2000,
+              padding: "16px 20px 20px",
+            }}>
+              <div style={{ fontSize: 13, color: "#5f6368", fontWeight: 600, marginBottom: 14, letterSpacing: 0.3 }}>ADVANCED SEARCH</div>
+              {[
+                { label: "From", key: "from", placeholder: "e.g. john@example.com" },
+                { label: "To", key: "to", placeholder: "e.g. me@example.com" },
+                { label: "Subject", key: "subject", placeholder: "Words in the subject" },
+                { label: "Has words", key: "hasWords", placeholder: "Words in the message" },
+                { label: "Doesn't have", key: "noWords", placeholder: "Words to exclude" },
+              ].map(({ label, key, placeholder }) => (
+                <div key={key} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <label style={{ width: 100, fontSize: 13, color: "#5f6368", textAlign: "right", flexShrink: 0 }}>{label}</label>
+                  <input
+                    value={advancedFields[key]}
+                    onChange={(e) => setAdvancedFields(f => ({ ...f, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    style={{ flex: 1, border: "1px solid #dadce0", borderRadius: 4, padding: "6px 10px", fontSize: 14, outline: "none", fontFamily: "inherit" }}
+                    onFocus={(e) => (e.currentTarget.style.borderColor = "#1a73e8")}
+                    onBlur={(e) => (e.currentTarget.style.borderColor = "#dadce0")}
+                    onKeyDown={(e) => { if (e.key === "Enter") commitAdvancedSearch(); }}
+                  />
+                </div>
+              ))}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                <label style={{ width: 100, fontSize: 13, color: "#5f6368", textAlign: "right", flexShrink: 0 }}>Date after</label>
+                <input type="date" value={advancedFields.dateAfter} onChange={(e) => setAdvancedFields(f => ({ ...f, dateAfter: e.target.value }))}
+                  style={{ flex: 1, border: "1px solid #dadce0", borderRadius: 4, padding: "6px 10px", fontSize: 14, outline: "none", fontFamily: "inherit" }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#1a73e8")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "#dadce0")} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+                <label style={{ width: 100, fontSize: 13, color: "#5f6368", textAlign: "right", flexShrink: 0 }}>Date before</label>
+                <input type="date" value={advancedFields.dateBefore} onChange={(e) => setAdvancedFields(f => ({ ...f, dateBefore: e.target.value }))}
+                  style={{ flex: 1, border: "1px solid #dadce0", borderRadius: 4, padding: "6px 10px", fontSize: 14, outline: "none", fontFamily: "inherit" }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#1a73e8")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "#dadce0")} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
+                <label style={{ width: 100, fontSize: 13, color: "#5f6368", textAlign: "right", flexShrink: 0 }}>Has</label>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 14, color: "#202124", cursor: "pointer" }}>
+                  <input type="checkbox" checked={advancedFields.hasAttachment} onChange={(e) => setAdvancedFields(f => ({ ...f, hasAttachment: e.target.checked }))}
+                    style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#1a73e8" }} />
+                  Attachment
+                </label>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                <button onClick={() => { setShowAdvancedSearch(false); setAdvancedFields({ from: "", to: "", subject: "", hasWords: "", noWords: "", hasAttachment: false, dateAfter: "", dateBefore: "" }); }}
+                  style={{ padding: "8px 20px", borderRadius: 4, border: "1px solid #dadce0", background: "#fff", fontSize: 14, cursor: "pointer", color: "#202124", fontFamily: "inherit" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#f1f3f4")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#fff")}>
+                  Cancel
+                </button>
+                <button onClick={commitAdvancedSearch}
+                  style={{ padding: "8px 20px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 14, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#1765cc")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "#1a73e8")}>
+                  Search
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
@@ -3364,8 +3925,26 @@ export default function GmailUI() {
           <div style={{ width: 72, flexShrink: 0, flexGrow: 0 }} />
         )}
 
+        {/* ── SEARCH RESULTS (replaces main content when searching) ── */}
+        {isSearching && (
+          <SearchOverlay
+            query={debouncedSearch}
+            page={searchPage}
+            setPage={setSearchPage}
+            emails={emails}
+            totalEmails={totalEmails}
+            loading={loading}
+            selectedId={searchSelectedId}
+            setSelectedId={setSearchSelectedId}
+            onClose={() => { setSearch(""); setDebouncedSearch(""); setSearchPage(1); setSearchSelectedId(null); }}
+            showToast={showToast}
+            patchList={patchList}
+            queryClient={queryClient}
+          />
+        )}
+
         {/* ── MAIN CONTENT ── */}
-        <div
+        {!isSearching && <div
           style={{
             flex: 1,
             display: "flex",
@@ -3877,24 +4456,24 @@ export default function GmailUI() {
                       </span>
                       <button
                         onClick={() =>
-                          setCurrentPage((p) => Math.max(1, p - 1))
+                          setActivePage((p) => Math.max(1, p - 1))
                         }
-                        disabled={currentPage === 1}
+                        disabled={activePage === 1}
                         title="Newer"
                         style={{
                           background: "none",
                           border: "none",
-                          cursor: currentPage === 1 ? "default" : "pointer",
+                          cursor: activePage === 1 ? "default" : "pointer",
                           borderRadius: "50%",
                           width: 36,
                           height: 36,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: currentPage === 1 ? "#bdbdbd" : "#5f6368",
+                          color: activePage === 1 ? "#bdbdbd" : "#5f6368",
                         }}
                         onMouseEnter={(e) => {
-                          if (currentPage > 1)
+                          if (activePage > 1)
                             e.currentTarget.style.background = "#f1f3f4";
                         }}
                         onMouseLeave={(e) =>
@@ -3905,15 +4484,15 @@ export default function GmailUI() {
                       </button>
                       <button
                         onClick={() =>
-                          setCurrentPage((p) => Math.min(totalPages, p + 1))
+                          setActivePage((p) => Math.min(totalPages, p + 1))
                         }
-                        disabled={currentPage === totalPages}
+                        disabled={activePage === totalPages}
                         title="Older"
                         style={{
                           background: "none",
                           border: "none",
                           cursor:
-                            currentPage === totalPages ? "default" : "pointer",
+                            activePage === totalPages ? "default" : "pointer",
                           borderRadius: "50%",
                           width: 36,
                           height: 36,
@@ -3921,10 +4500,10 @@ export default function GmailUI() {
                           alignItems: "center",
                           justifyContent: "center",
                           color:
-                            currentPage === totalPages ? "#bdbdbd" : "#5f6368",
+                            activePage === totalPages ? "#bdbdbd" : "#5f6368",
                         }}
                         onMouseEnter={(e) => {
-                          if (currentPage < totalPages)
+                          if (activePage < totalPages)
                             e.currentTarget.style.background = "#f1f3f4";
                         }}
                         onMouseLeave={(e) =>
@@ -3947,7 +4526,14 @@ export default function GmailUI() {
                           fontSize: 14,
                         }}
                       >
-                        Loading emails...
+                        {isSearching ? `Searching for "${debouncedSearch}"…` : "Loading emails..."}
+                      </div>
+                    )}
+                    {isSearching && !loading && (
+                      <div style={{ padding: "8px 16px 4px", fontSize: 13, color: "#5f6368" }}>
+                        {totalEmails > 0
+                          ? `Search results for "${debouncedSearch}"`
+                          : `No results for "${debouncedSearch}"`}
                       </div>
                     )}
                     {!loading && filteredEmails.length === 0 && (
@@ -3959,19 +4545,21 @@ export default function GmailUI() {
                           fontSize: 14,
                         }}
                       >
-                        {activeNav === "Starred"
-                          ? "No starred messages"
-                          : activeNav === "Sent"
-                            ? "No sent messages"
-                            : activeNav === "Drafts"
-                              ? "No drafts"
-                              : activeNav === "Trash"
-                                ? "Trash is empty"
-                                : activeNav === "Spam"
-                                  ? "No spam messages"
-                                  : activeNav === "Snoozed"
-                                    ? "No snoozed messages"
-                                    : "No emails found"}
+                        {isSearching
+                          ? `No results found for "${debouncedSearch}"`
+                          : activeNav === "Starred"
+                            ? "No starred messages"
+                            : activeNav === "Sent"
+                              ? "No sent messages"
+                              : activeNav === "Drafts"
+                                ? "No drafts"
+                                : activeNav === "Trash"
+                                  ? "Trash is empty"
+                                  : activeNav === "Spam"
+                                    ? "No spam messages"
+                                    : activeNav === "Snoozed"
+                                      ? "No snoozed messages"
+                                      : "No emails found"}
                       </div>
                     )}
                     {activeNav === "Trash" && filteredEmails.length > 0 && (
@@ -4562,7 +5150,7 @@ export default function GmailUI() {
               </div>
             </div>
           )}
-        </div>
+        </div>}
       </div>
 
       {/* Compose Modal */}
