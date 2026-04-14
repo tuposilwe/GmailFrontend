@@ -3381,8 +3381,8 @@ export default function GmailUI() {
             </Tooltip>
           </div>
 
-          {/* Suggestions dropdown */}
-          {searchFocused && !showAdvancedSearch && (
+          {/* Suggestions dropdown — only render when there is content to show */}
+          {searchFocused && !showAdvancedSearch && (search.trim() || recentSearches.length > 0) && (
             <div style={{
               position: "absolute",
               top: "100%",
@@ -3486,12 +3486,6 @@ export default function GmailUI() {
                 </>
               )}
 
-              {/* Empty state — no recent, no query */}
-              {!search.trim() && recentSearches.length === 0 && (
-                <div style={{ padding: "20px 20px", fontSize: 14, color: "#5f6368", textAlign: "center" }}>
-                  Start typing to search your mail
-                </div>
-              )}
 
               {/* Footer */}
               <div style={{ borderTop: "1px solid #f1f3f4", margin: "6px 0 0", padding: "8px 16px 4px", display: "flex", gap: 8, flexWrap: "wrap" }}>
