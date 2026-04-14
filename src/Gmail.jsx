@@ -2339,6 +2339,13 @@ export default function GmailUI() {
   });
   const draftsCount = draftsData.data?.total ?? 0;
 
+  const spamData = useQuery({
+    queryKey: emailListKey("Spam", 1),
+    queryFn: () => fetchEmailList("Spam", 1),
+    staleTime: 5 * 60_000,
+  });
+  const spamCount = spamData.data?.total ?? 0;
+
   const { data: storageData } = useQuery({
     queryKey: ["storage"],
     queryFn: () => fetch("/storage").then((r) => r.json()),
@@ -2968,14 +2975,35 @@ export default function GmailUI() {
                 color: activeNav === item.label ? "#001d35" : "#202124",
                 fontWeight: activeNav === item.label ? 600 : 400,
                 transition: "background 0.1s, margin 0.2s",
-                overflow: "hidden",
                 whiteSpace: "nowrap",
+                position: "relative",
               }}
             >
-              <item.icon size={20} style={{ flexShrink: 0 }} />
-              <span style={{ flex: 1, opacity: isExpanded ? 1 : 0, transition: "opacity 0.1s", overflow: "hidden" }}>
+              {/* Icon with optional dot */}
+              <span style={{ position: "relative", flexShrink: 0, display: "flex", overflow: "visible" }}>
+                <item.icon size={20} />
+                {!isExpanded && item.label === "Spam" && spamCount > 0 && (
+                  <span style={{
+                    position: "absolute",
+                    top: -5,
+                    right: -11,
+                    background: "#c5221f",
+                    borderRadius: "50%",
+                    width: 8,
+                    height: 8,
+                    border: "2px solid #f6f8fc",
+                  }} />
+                )}
+              </span>
+              <span style={{ flex: 1, opacity: isExpanded ? 1 : 0, transition: "opacity 0.1s", overflow: "hidden", textOverflow: "ellipsis" }}>
                 {item.label}
               </span>
+              {/* Expanded count */}
+              {item.label === "Spam" && spamCount > 0 && isExpanded && (
+                <span style={{ fontSize: 12, fontWeight: 600, color: activeNav === item.label ? "#001d35" : "#c5221f" }}>
+                  {spamCount}
+                </span>
+              )}
             </div>
           ))}
 
