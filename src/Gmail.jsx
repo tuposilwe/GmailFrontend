@@ -60,13 +60,10 @@ import {
   MdTune,
   MdHelpOutline,
   MdSettings,
+  MdAdd,
 } from "react-icons/md";
 
-const LABEL_STYLES = {
-  work: { bg: "#fce8e6", color: "#c5221f" },
-  personal: { bg: "#e6f4ea", color: "#137333" },
-  finance: { bg: "#e8f0fe", color: "#1967d2" },
-};
+const LABEL_STYLES = {};
 
 const NAV_ITEMS = [
   { icon: MdInbox, label: "Inbox" },
@@ -3887,18 +3884,31 @@ export default function GmailUI() {
               overflow: "hidden",
             }}
           >
-            {isExpanded && (
-              <div
-                style={{
-                  padding: "4px 20px",
-                  fontSize: 12,
-                  color: "#5f6368",
-                  fontWeight: 500,
-                  letterSpacing: "0.3px",
-                }}
-              >
-                Labels
+            {isExpanded ? (
+              <div style={{ display: "flex", alignItems: "center", padding: "4px 8px 4px 20px" }}>
+                <span style={{ flex: 1, fontSize: 12, color: "#5f6368", fontWeight: 700, letterSpacing: "0.3px" }}>
+                  Labels
+                </span>
+                <Tooltip label="Create new label" position="bottom">
+                  <button
+                    style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 28, height: 28, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0, padding: 0 }}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#e0e0e0")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+                  >
+                    <MdAdd size={18} />
+                  </button>
+                </Tooltip>
               </div>
+            ) : (
+              <Tooltip label="Create new label" position="right">
+                <div
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 72, height: 36, cursor: "pointer", color: "#5f6368", borderRadius: "0 20px 20px 0", marginRight: 8 }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#e0e0e0")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <MdAdd size={20} />
+                </div>
+              </Tooltip>
             )}
             {Object.entries(LABEL_STYLES).map(([label, style]) => (
               <div
