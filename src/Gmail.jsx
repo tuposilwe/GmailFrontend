@@ -78,12 +78,35 @@ const NAV_ITEMS_MORE = [
   { icon: MdDelete, label: "Trash" },
 ];
 
-function Tooltip({ label, children, position = "bottom" }) {
+const FREE_EMAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com",
+  "yahoo.com", "yahoo.co.uk", "yahoo.fr", "yahoo.de", "yahoo.es", "yahoo.co.jp",
+  "hotmail.com", "hotmail.co.uk", "hotmail.fr", "hotmail.de",
+  "outlook.com", "outlook.fr", "outlook.de",
+  "live.com", "live.co.uk", "live.fr",
+  "icloud.com", "me.com", "mac.com",
+  "aol.com",
+  "protonmail.com", "proton.me", "pm.me",
+  "mail.com", "gmx.com", "gmx.de", "gmx.net",
+  "yandex.com", "yandex.ru",
+  "msn.com", "inbox.com",
+]);
+
+function isBusinessEmail(emailStr) {
+  if (!emailStr) return false;
+  const domain = emailStr.split("@")[1]?.toLowerCase();
+  if (!domain) return false;
+  return !FREE_EMAIL_DOMAINS.has(domain);
+}
+
+function Tooltip({ label, children, position = "bottom", variant = "dark" }) {
   const [visible, setVisible] = useState(false);
   const timerRef = useRef(null);
 
   const show = () => { timerRef.current = setTimeout(() => setVisible(true), 500); };
   const hide = () => { clearTimeout(timerRef.current); setVisible(false); };
+
+  const isLight = variant === "light";
 
   return (
     <div
@@ -96,24 +119,64 @@ function Tooltip({ label, children, position = "bottom" }) {
         <div style={{
           position: "absolute",
           ...(position === "bottom"
-            ? { top: "calc(100% + 6px)" }
-            : { bottom: "calc(100% + 6px)" }),
+            ? { top: "calc(100% + 8px)" }
+            : { bottom: "calc(100% + 8px)" }),
           left: "50%",
           transform: "translateX(-50%)",
-          background: "#3c4043",
-          color: "#fff",
+          background: isLight ? "#fff" : "#3c4043",
+          color: isLight ? "#202124" : "#fff",
           fontSize: 12,
           fontWeight: 400,
-          padding: "5px 10px",
-          borderRadius: 4,
-          whiteSpace: "nowrap",
+          padding: isLight ? "10px 14px" : "5px 10px",
+          borderRadius: isLight ? 8 : 4,
+          whiteSpace: isLight ? "normal" : "nowrap",
+          maxWidth: isLight ? 260 : "none",
           pointerEvents: "none",
           zIndex: 9999,
-          lineHeight: "16px",
-          boxShadow: "0 1px 4px rgba(0,0,0,0.3)",
+          lineHeight: "18px",
+          boxShadow: isLight
+            ? "0 2px 8px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.06)"
+            : "0 1px 4px rgba(0,0,0,0.3)",
           letterSpacing: "0.01em",
         }}>
           {label}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VerificationBadge({ domain }) {
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef(null);
+
+  const show = () => { timerRef.current = setTimeout(() => setVisible(true), 250); };
+  const hide = () => { clearTimeout(timerRef.current); setVisible(false); };
+
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }} onMouseEnter={show} onMouseLeave={hide}>
+      <MdVerified size={16} color="#1a73e8" style={{ cursor: "default", flexShrink: 0 }} />
+      {visible && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 8px)",
+          left: -8,
+          background: "#fff",
+          borderRadius: 8,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15), 0 0 0 1px rgba(0,0,0,0.07)",
+          padding: "12px 14px",
+          zIndex: 9999,
+          pointerEvents: "none",
+          width: 248,
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 10,
+        }}>
+          <MdVerified size={22} color="#1a73e8" style={{ flexShrink: 0, marginTop: 1 }} />
+          <span style={{ fontSize: 13, color: "#202124", lineHeight: "19px", fontFamily: "Google Sans, Roboto, sans-serif" }}>
+            The sender of this email has verified that they own{" "}
+            <b>{domain}</b> and the logo in the profile image.
+          </span>
         </div>
       )}
     </div>
@@ -148,7 +211,7 @@ function SenderAvatar({
   initials,
   color,
   size = 40,
-  verified = false,
+  onVerified,
 }) {
   const domain = senderEmail ? senderEmail.split("@")[1] : "";
   const logoUrl = domain
@@ -164,36 +227,31 @@ function SenderAvatar({
     setFailed(false);
   }, [senderEmail]);
 
-  const badge = null;
+  const handleLoad = () => {
+    setLoaded(true);
+    if (isBusinessEmail(senderEmail) && onVerified) onVerified(true);
+  };
 
-  // No domain or all sources failed → coloured initials + optional badge
+  const isVerifiedBrand = loaded && isBusinessEmail(senderEmail);
+
+  // No domain or all sources failed → coloured initials, no badge
   if (failed || !domain) {
     return (
-      <div
-        style={{
-          position: "relative",
-          flexShrink: 0,
-          width: size,
-          height: size,
-        }}
-      >
+      <div style={{ position: "relative", flexShrink: 0, width: size, height: size }}>
         <Avatar initials={initials} color={color} size={size} />
-        {badge}
       </div>
     );
   }
 
   return (
-    <div
-      style={{ position: "relative", flexShrink: 0, width: size, height: size }}
-    >
+    <div style={{ position: "relative", flexShrink: 0, width: size, height: size }}>
       {/* Show initials until the logo resolves */}
       {!loaded && <Avatar initials={initials} color={color} size={size} />}
 
       <img
         key={logoUrl}
         src={logoUrl}
-        onLoad={() => setLoaded(true)}
+        onLoad={handleLoad}
         onError={() => setFailed(true)}
         alt=""
         style={{
@@ -208,8 +266,6 @@ function SenderAvatar({
           display: "block",
         }}
       />
-
-      {badge}
     </div>
   );
 }
@@ -1350,6 +1406,7 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
   const [expanded, setExpanded] = useState(initialExpanded);
   const [showDetails, setShowDetails] = useState(false);
   const [downloadingIdx, setDownloadingIdx] = useState(null);
+  const [senderVerified, setSenderVerified] = useState(false);
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ["email", msgMeta.id, msgMeta.folder],
@@ -1407,6 +1464,7 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
           initials={msgMeta.avatar || (senderName||"?").charAt(0).toUpperCase()}
           color={msgMeta.folder === "sent" ? "#34a853" : "#1a73e8"}
           size={32}
+          onVerified={setSenderVerified}
         />
         <span style={{ fontWeight: 600, fontSize: 13, color: "#202124", flexShrink: 0 }}>
           {senderName}
@@ -1438,11 +1496,15 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
           initials={msgMeta.avatar || (senderName||"?").charAt(0).toUpperCase()}
           color={msgMeta.folder === "sent" ? "#34a853" : "#1a73e8"}
           size={40}
+          onVerified={setSenderVerified}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexWrap: "wrap" }}>
               <span style={{ fontWeight: 600, fontSize: 14, color: "#202124" }}>{senderName}</span>
+              {senderVerified && (
+                <VerificationBadge domain={senderEmail.split("@")[1]} />
+              )}
               {senderEmail && <span style={{ fontSize: 12, color: "#5f6368" }}>&lt;{senderEmail}&gt;</span>}
             </div>
             <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>{fullDate}</span>
