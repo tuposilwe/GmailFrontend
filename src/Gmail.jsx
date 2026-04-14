@@ -2069,6 +2069,8 @@ function EmailDetail({
   folder,
 }) {
   const folderParam = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : folder === "spam" ? "?folder=spam" : "";
+  const queryClient = useQueryClient();
+  const [detailLoading, setDetailLoading] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [mailboxes, setMailboxes] = useState([]);
@@ -2199,8 +2201,6 @@ function EmailDetail({
     setShowMoreMenu(false);
   };
 
-  const queryClient = useQueryClient();
-
   // ── Thread query ────────────────────────────────────────────────────────────
   const baseSubject = (email.subject || "").replace(/^((Re|Fwd?|Fw|AW|WG):\s*)*/gi, "").trim();
   const { data: threadMsgs = [] } = useQuery({
@@ -2212,6 +2212,22 @@ function EmailDetail({
 
   // Fallback: always show at least the current email
   const thread = threadMsgs.length > 0 ? threadMsgs : [{ id: email.id, folder, senderName: email.senderName || email.sender, senderEmail: email.senderEmail || "", subject: email.subject, date: email.date, time: email.time, avatar: email.avatar }];
+
+  // Show loading indicator when navigating to an email whose body isn't cached yet
+  useEffect(() => {
+    const cached = queryClient.getQueryData(["email", email.id, folder]);
+    if (!cached) {
+      setDetailLoading(true);
+      // Fetch in background and clear loading once done
+      queryClient.fetchQuery({
+        queryKey: ["email", email.id, folder],
+        queryFn: () => fetch(`/emails/${email.id}${folderParam}`).then(r => r.json()),
+        staleTime: Infinity,
+      }).finally(() => setDetailLoading(false));
+    } else {
+      setDetailLoading(false);
+    }
+  }, [email.id, folder]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openInline = (mode, replySenderEmail, replySenderName, initialBody = "") => {
     const isReply = mode === 'reply';
@@ -2343,6 +2359,18 @@ function EmailDetail({
         overflow: "hidden",
       }}
     >
+      {/* Loading bar — shown while navigating to an uncached email */}
+      <div style={{ height: 3, background: "transparent", flexShrink: 0, overflow: "hidden" }}>
+        {detailLoading && (
+          <div style={{
+            height: "100%",
+            background: "#1a73e8",
+            animation: "gmail-loading 1.4s ease-in-out infinite",
+            width: "40%",
+          }} />
+        )}
+      </div>
+
       {/* Toolbar */}
       <div
         style={{
@@ -2682,6 +2710,37 @@ function EmailDetail({
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0, padding: "16px 24px 24px" }}>
+        {/* Loading skeleton while fetching navigated email */}
+        {detailLoading && (
+          <div style={{ padding: "8px 0" }}>
+            <style>{`
+              @keyframes shimmer {
+                0%   { background-position: -600px 0; }
+                100% { background-position: 600px 0; }
+              }
+              .skeleton {
+                background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+                background-size: 600px 100%;
+                animation: shimmer 1.4s infinite linear;
+                border-radius: 6px;
+              }
+            `}</style>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+              <div className="skeleton" style={{ width: 40, height: 40, borderRadius: "50%", flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div className="skeleton" style={{ height: 14, width: "40%", marginBottom: 8 }} />
+                <div className="skeleton" style={{ height: 12, width: "25%" }} />
+              </div>
+            </div>
+            <div className="skeleton" style={{ height: 13, width: "90%", marginBottom: 10 }} />
+            <div className="skeleton" style={{ height: 13, width: "80%", marginBottom: 10 }} />
+            <div className="skeleton" style={{ height: 13, width: "85%", marginBottom: 10 }} />
+            <div className="skeleton" style={{ height: 13, width: "60%", marginBottom: 24 }} />
+            <div className="skeleton" style={{ height: 13, width: "88%", marginBottom: 10 }} />
+            <div className="skeleton" style={{ height: 13, width: "72%", marginBottom: 10 }} />
+          </div>
+        )}
+
         {/* Thread messages — oldest first, current message expanded */}
         {thread.map((msg) => (
           <ThreadMessageCard
@@ -3186,6 +3245,7 @@ export default function GmailUI() {
   const [unsubscribing, setUnsubscribing] = useState(false);
   const [snoozeTarget, setSnoozeTarget] = useState(null); // { id, folder }
   const [currentPage, setCurrentPage] = useState(1);
+  const [autoPageRedirecting, setAutoPageRedirecting] = useState(false);
   const [activeNav, setActiveNav] = useState(_initFolder);
   const [showMoreNav, setShowMoreNav] = useState(
     NAV_ITEMS_MORE.some(i => i.label === _initFolder)
@@ -3386,7 +3446,7 @@ export default function GmailUI() {
   const isExpanded = sidebarOpen || sidebarHovered;
 
   // ── Email list via React Query ──────────────────────────────────────────────
-  const { data: emailData, isLoading: folderLoading } = useQuery({
+  const { data: emailData, isLoading: folderLoading, isFetching: folderFetching } = useQuery({
     queryKey: emailListKey(activeNav, currentPage),
     queryFn: () => fetchEmailList(activeNav, currentPage),
     // Keep previous page's data visible while the next page loads
@@ -3411,6 +3471,45 @@ export default function GmailUI() {
   const emails = isSearching ? (searchData?.emails ?? []) : (emailData?.emails ?? []);
   const totalEmails = isSearching ? (searchData?.total ?? 0) : (emailData?.total ?? 0);
   const loading = isSearching ? searchLoading : folderLoading;
+  // isFetching is true during both initial load AND background refetches (e.g. navigating to a
+  // cached-but-stale page).  We must not trigger the empty-page redirect while a fresh response
+  // is still in-flight — otherwise stale cached 0-email data causes an instant redirect before
+  // the real server data arrives.
+  const fetching = isSearching ? searchLoading : folderFetching;
+
+  // Auto-navigate away from an empty page (e.g. after deleting all emails on a non-first page)
+  useEffect(() => {
+    // Wait until any in-flight fetch (initial or background) has settled before deciding the
+    // page is truly empty.  With staleTime=60s, cached-empty data is returned immediately with
+    // isFetching=false, so we also need to purge that stale entry so re-navigation forces a
+    // fresh server fetch instead of re-triggering this redirect loop.
+    if (isSearching || fetching) return;
+    if (emails.length === 0) {
+      if (currentPage > 1) {
+        // Remove the empty page from cache entirely so the user can navigate back to it and
+        // get a real server response rather than the stale 0-email entry.
+        queryClient.removeQueries({ queryKey: emailListKey(activeNav, currentPage) });
+        setAutoPageRedirecting(true);
+        setCurrentPage((p) => p - 1);
+      } else if (totalEmails > 0) {
+        // Page 1 appears empty but server says emails exist — force a refetch
+        queryClient.removeQueries({ queryKey: emailListKey(activeNav, 1) });
+        setAutoPageRedirecting(true);
+        queryClient.invalidateQueries({ queryKey: emailListKey(activeNav, 1) });
+      }
+    }
+  }, [fetching, emails.length, currentPage, isSearching, totalEmails, activeNav]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Clear the redirect flag once data actually arrives
+  useEffect(() => {
+    if (autoPageRedirecting && !fetching && emails.length > 0) {
+      setAutoPageRedirecting(false);
+    }
+    // Also clear if we're genuinely on an empty folder (page 1, totalEmails 0)
+    if (autoPageRedirecting && !fetching && currentPage === 1 && totalEmails === 0) {
+      setAutoPageRedirecting(false);
+    }
+  }, [autoPageRedirecting, fetching, emails.length, currentPage, totalEmails]);
 
   // Always keep a live unread count for Inbox regardless of which folder is active
   // staleTime=5min so background refetches don't pile up IMAP connections
@@ -3781,12 +3880,39 @@ export default function GmailUI() {
       <div
         style={{
           display: "flex",
+          flexDirection: "column",
+          flexShrink: 0,
+        }}
+      >
+      {/* Loading bar — shown on refresh (loading) and background page fetches (fetching) */}
+      <div style={{ height: 3, background: "transparent", overflow: "hidden", flexShrink: 0 }}>
+        {fetching && (
+          <>
+            <style>{`
+              @keyframes gmail-loading {
+                0%   { transform: translateX(-100%); }
+                50%  { transform: translateX(0%); }
+                100% { transform: translateX(100%); }
+              }
+            `}</style>
+            <div style={{
+              height: "100%",
+              background: "#1a73e8",
+              animation: "gmail-loading 1.4s ease-in-out infinite",
+              width: "40%",
+            }} />
+          </>
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
           alignItems: "center",
           gap: 8,
           padding: "8px 16px 8px 4px",
           background: "#f6f8fc",
           flexShrink: 0,
-          height: 64,
+          height: 61,
         }}
       >
         {/* Hamburger */}
@@ -4159,6 +4285,7 @@ export default function GmailUI() {
         >
           A
         </div>
+      </div>
       </div>
 
       {/* ── BODY ROW (sidebar + main) ── */}
@@ -5022,9 +5149,11 @@ export default function GmailUI() {
                         {pageStart}–{pageEnd} of {totalEmails}
                       </span>
                       <button
-                        onClick={() =>
-                          setActivePage((p) => Math.max(1, p - 1))
-                        }
+                        onClick={() => {
+                          const dest = Math.max(1, activePage - 1);
+                          queryClient.removeQueries({ queryKey: emailListKey(activeNav, dest) });
+                          setActivePage(dest);
+                        }}
                         disabled={activePage === 1}
                         title="Newer"
                         style={{
@@ -5050,9 +5179,11 @@ export default function GmailUI() {
                         <MdKeyboardArrowLeft size={20} />
                       </button>
                       <button
-                        onClick={() =>
-                          setActivePage((p) => Math.min(totalPages, p + 1))
-                        }
+                        onClick={() => {
+                          const dest = Math.min(totalPages, activePage + 1);
+                          queryClient.removeQueries({ queryKey: emailListKey(activeNav, dest) });
+                          setActivePage(dest);
+                        }}
                         disabled={activePage === totalPages}
                         title="Older"
                         style={{
@@ -5103,7 +5234,7 @@ export default function GmailUI() {
                           : `No results for "${debouncedSearch}"`}
                       </div>
                     )}
-                    {!loading && filteredEmails.length === 0 && (
+                    {!fetching && !autoPageRedirecting && filteredEmails.length === 0 && (
                       <div
                         style={{
                           padding: 40,
