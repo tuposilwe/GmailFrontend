@@ -1291,10 +1291,203 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
   );
 }
 
+// ── Single message card inside a thread ──────────────────────────────────────
+function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardClick }) {
+  const folderParam = msgMeta.folder === "sent" ? "?folder=sent" : msgMeta.folder === "trash" ? "?folder=trash" : msgMeta.folder === "spam" ? "?folder=spam" : "";
+  const [expanded, setExpanded] = useState(initialExpanded);
+  const [showDetails, setShowDetails] = useState(false);
+  const [downloadingIdx, setDownloadingIdx] = useState(null);
+
+  const { data: detail, isLoading } = useQuery({
+    queryKey: ["email", msgMeta.id, msgMeta.folder],
+    queryFn: () => fetch(`/emails/${msgMeta.id}${folderParam}`).then(r => r.json()),
+    enabled: expanded,
+    staleTime: Infinity,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  const senderName = detail?.senderName || msgMeta.senderName;
+  const senderEmail = detail?.senderEmail || msgMeta.senderEmail || "";
+  const toEmail = detail?.toEmail || "";
+  const fullDate = detail?.date
+    ? new Date(detail.date).toLocaleString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+    : msgMeta.time;
+
+  const downloadAttachment = async (index, filename) => {
+    setDownloadingIdx(index);
+    try {
+      const res = await fetch(`/emails/${msgMeta.id}/attachments/${index}${folderParam}`);
+      if (!res.ok) throw new Error("Failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch (err) { console.error("Download failed:", err); }
+    finally { setDownloadingIdx(null); }
+  };
+
+  if (!expanded) {
+    // Collapsed row
+    const snippet = msgMeta.subject || "";
+    return (
+      <div
+        onClick={() => setExpanded(true)}
+        style={{
+          border: "0.5px solid #e0e0e0",
+          borderRadius: 8,
+          padding: "12px 20px",
+          marginBottom: 8,
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          background: "#fff",
+          transition: "background 0.1s",
+        }}
+        onMouseEnter={e => e.currentTarget.style.background = "#f6f8fc"}
+        onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+      >
+        <SenderAvatar
+          senderEmail={senderEmail}
+          initials={msgMeta.avatar || (senderName||"?").charAt(0).toUpperCase()}
+          color={msgMeta.folder === "sent" ? "#34a853" : "#1a73e8"}
+          size={32}
+        />
+        <span style={{ fontWeight: 600, fontSize: 13, color: "#202124", flexShrink: 0 }}>
+          {senderName}
+        </span>
+        <span style={{ fontSize: 13, color: "#5f6368", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {snippet}
+        </span>
+        <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>{msgMeta.time}</span>
+      </div>
+    );
+  }
+
+  // Expanded card
+  return (
+    <div
+      style={{
+        border: "0.5px solid #e0e0e0",
+        borderRadius: 8,
+        padding: "20px 24px",
+        marginBottom: 8,
+        background: "#fff",
+      }}
+    >
+      {/* Sender row */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
+        <SenderAvatar
+          key={senderEmail}
+          senderEmail={senderEmail}
+          initials={msgMeta.avatar || (senderName||"?").charAt(0).toUpperCase()}
+          color={msgMeta.folder === "sent" ? "#34a853" : "#1a73e8"}
+          size={40}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0, flexWrap: "wrap" }}>
+              <span style={{ fontWeight: 600, fontSize: 14, color: "#202124" }}>{senderName}</span>
+              {senderEmail && <span style={{ fontSize: 12, color: "#5f6368" }}>&lt;{senderEmail}&gt;</span>}
+            </div>
+            <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>{fullDate}</span>
+          </div>
+          <div
+            style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, cursor: "pointer" }}
+            onClick={() => setShowDetails(v => !v)}
+          >
+            <span style={{ fontSize: 12, color: "#5f6368" }}>to {toEmail || "me"}</span>
+            <MdKeyboardArrowDown size={16} color="#5f6368"
+              style={{ transform: showDetails ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+            />
+          </div>
+          {showDetails && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#5f6368", lineHeight: 1.8 }}>
+              <div><span style={{ display: "inline-block", minWidth: 40 }}>from:</span> {senderName} &lt;{senderEmail}&gt;</div>
+              <div><span style={{ display: "inline-block", minWidth: 40 }}>to:</span> {toEmail || "me"}</div>
+              <div><span style={{ display: "inline-block", minWidth: 40 }}>date:</span> {fullDate}</div>
+              <div><span style={{ display: "inline-block", minWidth: 40 }}>subject:</span> {msgMeta.subject}</div>
+            </div>
+          )}
+        </div>
+        {/* Reply/Forward icon buttons */}
+        <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+          <button onClick={() => onReplyClick(senderEmail, senderName)} title="Reply"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}
+          ><MdReply size={18} /></button>
+          <button onClick={() => onForwardClick()} title="Forward"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}
+          ><MdForward size={18} /></button>
+          <button onClick={() => setExpanded(false)} title="Collapse"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}
+          ><MdKeyboardArrowUp size={18} /></button>
+        </div>
+      </div>
+
+      {/* Body */}
+      {isLoading ? (
+        <div style={{ color: "#5f6368", fontSize: 13, padding: "20px 0" }}>Loading message...</div>
+      ) : detail?.html ? (
+        <div style={{ fontSize: 14, color: "#202124", lineHeight: 1.7 }} dangerouslySetInnerHTML={{ __html: detail.html }} />
+      ) : (
+        <div style={{ fontSize: 14, color: "#202124", lineHeight: 1.7, whiteSpace: "pre-wrap" }}>
+          {detail?.text || "(No message content)"}
+        </div>
+      )}
+
+      {/* Attachments */}
+      {!isLoading && detail?.attachments?.length > 0 && (
+        <div style={{ marginTop: 24, borderTop: "0.5px solid #e0e0e0", paddingTop: 16 }}>
+          <div style={{ fontSize: 13, color: "#5f6368", marginBottom: 10 }}>
+            {detail.attachments.length} attachment{detail.attachments.length > 1 ? "s" : ""}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+            {detail.attachments.map(att => {
+              const isImage = att.contentType.startsWith("image/");
+              const isPdf = att.contentType === "application/pdf";
+              const AttIcon = isImage ? MdImage : isPdf ? MdPictureAsPdf : MdInsertDriveFile;
+              const iconColor = isImage ? "#34A853" : isPdf ? "#EA4335" : "#1a73e8";
+              const sizeLabel = att.size >= 1024*1024 ? `${(att.size/1024/1024).toFixed(1)} MB` : att.size >= 1024 ? `${(att.size/1024).toFixed(0)} KB` : `${att.size} B`;
+              return (
+                <div key={att.index} style={{ border: "0.5px solid #e0e0e0", borderRadius: 8, width: 220, overflow: "hidden", background: "#f8f9fa" }}>
+                  <div style={{ height: 80, background: "#f1f3f4", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "0.5px solid #e0e0e0" }}>
+                    <AttIcon size={36} color={iconColor} />
+                  </div>
+                  <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <AttIcon size={16} color={iconColor} style={{ flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 500, color: "#202124", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{att.filename}</div>
+                      <div style={{ fontSize: 11, color: "#5f6368" }}>{sizeLabel}</div>
+                    </div>
+                    <button onClick={e => { e.stopPropagation(); downloadAttachment(att.index, att.filename); }}
+                      title="Download" disabled={downloadingIdx === att.index}
+                      style={{ background: "none", border: "none", cursor: downloadingIdx === att.index ? "default" : "pointer", color: "#5f6368", display: "flex", flexShrink: 0, padding: 0, opacity: downloadingIdx === att.index ? 0.4 : 1 }}>
+                      <MdDownload size={18} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function EmailDetail({
   email,
   onClose,
   onReply,
+  onForward,
   onDelete,
   onMarkUnread,
   onPrev,
@@ -1304,29 +1497,27 @@ function EmailDetail({
   folder,
 }) {
   const folderParam = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : folder === "spam" ? "?folder=spam" : "";
-  const { data: detail, isLoading: loadingDetail } = useQuery({
-    queryKey: ["email", email.id, folder],
-    queryFn: () => fetch(`/emails/${email.id}${folderParam}`).then((r) => r.json()),
-    staleTime: Infinity,
-    gcTime: 30 * 60 * 1000,
-  });
-  const [showDetails, setShowDetails] = useState(false);
-  const [downloadingIdx, setDownloadingIdx] = useState(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [mailboxes, setMailboxes] = useState([]);
   const [acting, setActing] = useState(false);
+  const [inlineMode, setInlineMode] = useState(null); // null | 'reply' | 'forward'
+  const [inlineRecipients, setInlineRecipients] = useState([]);
+  const [inlineSubject, setInlineSubject] = useState("");
+  const [inlineContacts, setInlineContacts] = useState([]);
+  const inlineBodyRef = useRef(null);
 
   useEffect(() => {
     const handleKey = (e) => {
-      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+      if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA" || e.target.isContentEditable)
         return;
+      if (inlineMode) return;
       if (e.key === "ArrowLeft" && onPrev) onPrev();
       if (e.key === "ArrowRight" && onNext) onNext();
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [onPrev, onNext]);
+  }, [onPrev, onNext, inlineMode]);
 
   const act = async (endpoint, method = "POST") => {
     setActing(true);
@@ -1365,6 +1556,52 @@ function EmailDetail({
     setShowMoreMenu(false);
   };
 
+  // ── Thread query ────────────────────────────────────────────────────────────
+  const baseSubject = (email.subject || "").replace(/^((Re|Fwd?|Fw|AW|WG):\s*)*/gi, "").trim();
+  const { data: threadMsgs = [] } = useQuery({
+    queryKey: ["thread", baseSubject],
+    queryFn: () => fetch(`/emails/thread?subject=${encodeURIComponent(baseSubject)}`).then(r => r.json()),
+    staleTime: 30 * 1000,
+    enabled: !!baseSubject,
+  });
+
+  // Fallback: always show at least the current email
+  const thread = threadMsgs.length > 0 ? threadMsgs : [{ id: email.id, folder, senderName: email.senderName || email.sender, senderEmail: email.senderEmail || "", subject: email.subject, date: email.date, time: email.time, avatar: email.avatar }];
+
+  const openInline = (mode, replySenderEmail, replySenderName) => {
+    const isReply = mode === 'reply';
+    const subjectPrefix = isReply ? "Re:" : "Fwd:";
+    const subject = email.subject?.startsWith(subjectPrefix)
+      ? email.subject
+      : `${subjectPrefix} ${email.subject || ""}`;
+    setInlineMode(mode);
+    setInlineSubject(subject);
+    setInlineRecipients(
+      isReply && replySenderEmail
+        ? [{ email: replySenderEmail, name: replySenderName || replySenderEmail }]
+        : []
+    );
+    if (inlineContacts.length === 0) {
+      fetch("/contacts").then(r => r.json()).then(setInlineContacts).catch(() => {});
+    }
+    setTimeout(() => inlineBodyRef.current?.focus(), 50);
+  };
+
+  const handleReply = (senderEmail, senderName) => openInline('reply', senderEmail, senderName);
+  const handleForward = () => openInline('forward');
+
+  const handleInlineSend = () => {
+    const body = inlineBodyRef.current?.innerHTML || "";
+    const draft = { recipients: inlineRecipients, subject: inlineSubject, body, attachments: [] };
+    if (inlineMode === 'reply') onReply(draft);
+    else onForward(draft);
+    setInlineMode(null);
+  };
+
+  const handleInlineDiscard = () => {
+    setInlineMode(null);
+  };
+
   const openMoveMenu = async () => {
     setShowMoveMenu(true);
     if (mailboxes.length === 0) {
@@ -1396,41 +1633,6 @@ function EmailDetail({
       setActing(false);
     }
   };
-
-  const downloadAttachment = async (index, filename) => {
-    setDownloadingIdx(index);
-    try {
-      const res = await fetch(`/emails/${email.id}/attachments/${index}${folderParam}`);
-      if (!res.ok) throw new Error("Failed to fetch attachment");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error("Download failed:", err);
-    } finally {
-      setDownloadingIdx(null);
-    }
-  };
-
-  const senderName = detail?.senderName || email.senderName || email.sender;
-  const senderEmail = detail?.senderEmail || email.senderEmail || "";
-  const toEmail = detail?.toEmail || "";
-  const fullDate = detail?.date
-    ? new Date(detail.date).toLocaleString([], {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : email.time;
 
   const iconBtn = (onClick, title, children) => (
     <button
@@ -1781,6 +1983,11 @@ function EmailDetail({
           }}
         >
           {email.subject}
+          {thread.length > 1 && (
+            <span style={{ fontSize: 16, fontWeight: 400, color: "#5f6368", marginLeft: 8 }}>
+              {thread.length}
+            </span>
+          )}
         </span>
         {email.label && email.label !== "inbox" && (
           <span
@@ -1801,361 +2008,153 @@ function EmailDetail({
 
       {/* Scrollable body */}
       <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px 24px" }}>
-        {/* Message card */}
-        <div
-          style={{
-            border: "0.5px solid #e0e0e0",
-            borderRadius: 8,
-            padding: "20px 24px",
-            marginBottom: 16,
-          }}
-        >
-          {/* Sender row */}
+        {/* Thread messages — oldest first, current message expanded */}
+        {thread.map((msg) => (
+          <ThreadMessageCard
+            key={`${msg.folder}:${msg.id}`}
+            msgMeta={msg}
+            initialExpanded={msg.id === email.id && msg.folder === folder}
+            onReplyClick={(sEmail, sName) => handleReply(sEmail, sName)}
+            onForwardClick={() => handleForward()}
+          />
+        ))}
+
+        {/* Reply / Forward buttons or inline compose */}
+        {inlineMode ? (
           <div
             style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: 14,
-              marginBottom: 20,
+              border: "1px solid #c6c6c6",
+              borderRadius: 8,
+              background: "#fff",
+              boxShadow: "0 1px 6px rgba(0,0,0,0.1)",
+              overflow: "hidden",
             }}
           >
-            <SenderAvatar
-              key={senderEmail}
-              senderEmail={senderEmail}
-              initials={email.avatar}
-              color={email.avatarColor}
-              size={40}
-              verified={!!(detail?.verified ?? email.verified)}
-            />
-
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 8,
-                }}
+            {/* Inline compose header */}
+            <div
+              style={{
+                padding: "8px 16px",
+                fontSize: 13,
+                fontWeight: 500,
+                color: "#202124",
+                borderBottom: "0.5px solid #e0e0e0",
+                background: "#f2f6fc",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>{inlineMode === 'reply' ? 'Reply' : 'Forward'}</span>
+              <button
+                onClick={handleInlineDiscard}
+                title="Discard"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 2 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                    minWidth: 0,
-                    flexWrap: "wrap",
-                  }}
-                >
-                  <span
-                    style={{ fontWeight: 600, fontSize: 14, color: "#202124" }}
-                  >
-                    {senderName}
-                  </span>
-                  {!!(detail?.verified ?? email.verified) && (
-                    <MdVerified size={16} color="#1a73e8" style={{ flexShrink: 0 }} />
-                  )}
-                  {senderEmail && (
-                    <span style={{ fontSize: 12, color: "#5f6368" }}>
-                      &lt;{senderEmail}&gt;
-                    </span>
-                  )}
-                </div>
-                <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>
-                  {fullDate}
-                </span>
-              </div>
-
-              {/* to me / details toggle */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  marginTop: 3,
-                  cursor: "pointer",
-                }}
-                onClick={() => setShowDetails((v) => !v)}
-              >
-                <span style={{ fontSize: 12, color: "#5f6368" }}>
-                  to {toEmail || "me"}
-                </span>
-                <MdKeyboardArrowDown
-                  size={16}
-                  color="#5f6368"
-                  style={{
-                    transform: showDetails ? "rotate(180deg)" : "rotate(0deg)",
-                    transition: "transform 0.2s",
-                  }}
-                />
-              </div>
-
-              {/* Expanded details */}
-              {showDetails && (
-                <div
-                  style={{
-                    marginTop: 8,
-                    fontSize: 12,
-                    color: "#5f6368",
-                    lineHeight: 1.8,
-                  }}
-                >
-                  <div>
-                    <span style={{ display: "inline-block", minWidth: 40 }}>
-                      from:
-                    </span>{" "}
-                    {senderName} &lt;{senderEmail}&gt;
-                  </div>
-                  <div>
-                    <span style={{ display: "inline-block", minWidth: 40 }}>
-                      to:
-                    </span>{" "}
-                    {toEmail || "me"}
-                  </div>
-                  <div>
-                    <span style={{ display: "inline-block", minWidth: 40 }}>
-                      date:
-                    </span>{" "}
-                    {fullDate}
-                  </div>
-                  <div>
-                    <span style={{ display: "inline-block", minWidth: 40 }}>
-                      subject:
-                    </span>{" "}
-                    {email.subject}
-                  </div>
-                </div>
-              )}
+                <MdClose size={18} />
+              </button>
             </div>
 
-            {/* Action icons */}
-            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+            {/* To row */}
+            <div style={{ display: "flex", alignItems: "center", borderBottom: "0.5px solid #e0e0e0", padding: "4px 16px", gap: 8 }}>
+              <span style={{ fontSize: 13, color: "#5f6368", flexShrink: 0 }}>To</span>
+              <ToField
+                recipients={inlineRecipients}
+                onChange={setInlineRecipients}
+                preloaded={inlineContacts}
+              />
+            </div>
+
+            {/* Subject row (read-only, dimmed) */}
+            <div style={{ display: "flex", alignItems: "center", borderBottom: "0.5px solid #e0e0e0", padding: "6px 16px", gap: 8 }}>
+              <span style={{ fontSize: 13, color: "#5f6368", flexShrink: 0 }}>Subject</span>
+              <span style={{ fontSize: 13, color: "#202124", flex: 1 }}>{inlineSubject}</span>
+            </div>
+
+            {/* Body */}
+            <div
+              ref={inlineBodyRef}
+              contentEditable
+              suppressContentEditableWarning
+              style={{
+                minHeight: 120,
+                padding: "12px 16px",
+                fontSize: 14,
+                color: "#202124",
+                outline: "none",
+                lineHeight: 1.6,
+              }}
+              onKeyDown={(e) => {
+                // prevent arrow keys from navigating emails while typing
+                e.stopPropagation();
+              }}
+            />
+
+            {/* Footer */}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px", borderTop: "0.5px solid #e0e0e0" }}>
               <button
-                onClick={onReply}
-                title="Reply"
+                onClick={handleInlineSend}
                 style={{
-                  background: "none",
+                  background: "#1a73e8",
+                  color: "#fff",
                   border: "none",
+                  borderRadius: 20,
+                  padding: "8px 20px",
+                  fontSize: 13,
+                  fontWeight: 500,
                   cursor: "pointer",
-                  color: "#5f6368",
-                  borderRadius: "50%",
-                  padding: 6,
-                  display: "flex",
                 }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#f1f3f4")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "none")
-                }
               >
-                <MdReply size={18} />
+                Send
               </button>
               <button
-                title="Forward"
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "#5f6368",
-                  borderRadius: "50%",
-                  padding: 6,
-                  display: "flex",
-                }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.background = "#f1f3f4")
-                }
-                onMouseLeave={(e) =>
-                  (e.currentTarget.style.background = "none")
-                }
+                onClick={handleInlineDiscard}
+                title="Discard draft"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 6 }}
               >
-                <MdForward size={18} />
+                <MdDelete size={18} />
               </button>
             </div>
           </div>
-
-          {/* Body */}
-          {loadingDetail ? (
-            <div style={{ color: "#5f6368", fontSize: 13, padding: "20px 0" }}>
-              Loading message...
-            </div>
-          ) : detail?.html ? (
-            <div
-              style={{ fontSize: 14, color: "#202124", lineHeight: 1.7 }}
-              dangerouslySetInnerHTML={{ __html: detail.html }}
-            />
-          ) : (
-            <div
+        ) : (
+          <div style={{ display: "flex", gap: 12, paddingLeft: 4 }}>
+            <button
+              onClick={() => handleReply(email.senderEmail, email.senderName || email.sender)}
               style={{
-                fontSize: 14,
+                border: "0.5px solid #ccc",
+                background: "#fff",
+                borderRadius: 20,
+                padding: "8px 20px",
+                fontSize: 13,
+                cursor: "pointer",
                 color: "#202124",
-                lineHeight: 1.7,
-                whiteSpace: "pre-wrap",
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              {detail?.text || "(No message content)"}
-            </div>
-          )}
-
-          {/* Attachments */}
-          {!loadingDetail && detail?.attachments?.length > 0 && (
-            <div
+              <MdReply size={16} /> Reply
+            </button>
+            <button
+              onClick={handleForward}
               style={{
-                marginTop: 24,
-                borderTop: "0.5px solid #e0e0e0",
-                paddingTop: 16,
+                border: "0.5px solid #ccc",
+                background: "#fff",
+                borderRadius: 20,
+                padding: "8px 20px",
+                fontSize: 13,
+                cursor: "pointer",
+                color: "#202124",
+                fontWeight: 500,
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
-              <div style={{ fontSize: 13, color: "#5f6368", marginBottom: 10 }}>
-                {detail.attachments.length} attachment
-                {detail.attachments.length > 1 ? "s" : ""}
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                {detail.attachments.map((att) => {
-                  const isImage = att.contentType.startsWith("image/");
-                  const isPdf = att.contentType === "application/pdf";
-                  const AttIcon = isImage
-                    ? MdImage
-                    : isPdf
-                      ? MdPictureAsPdf
-                      : MdInsertDriveFile;
-                  const iconColor = isImage
-                    ? "#34A853"
-                    : isPdf
-                      ? "#EA4335"
-                      : "#1a73e8";
-                  const sizeLabel =
-                    att.size >= 1024 * 1024
-                      ? `${(att.size / (1024 * 1024)).toFixed(1)} MB`
-                      : att.size >= 1024
-                        ? `${(att.size / 1024).toFixed(0)} KB`
-                        : `${att.size} B`;
-
-                  return (
-                    <div
-                      key={att.index}
-                      style={{
-                        border: "0.5px solid #e0e0e0",
-                        borderRadius: 8,
-                        width: 220,
-                        overflow: "hidden",
-                        background: "#f8f9fa",
-                      }}
-                    >
-                      {/* Preview area */}
-                      <div
-                        style={{
-                          height: 80,
-                          background: "#f1f3f4",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          borderBottom: "0.5px solid #e0e0e0",
-                        }}
-                      >
-                        <AttIcon size={36} color={iconColor} />
-                      </div>
-
-                      {/* Info + download row */}
-                      <div
-                        style={{
-                          padding: "8px 10px",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                        }}
-                      >
-                        <AttIcon
-                          size={16}
-                          color={iconColor}
-                          style={{ flexShrink: 0 }}
-                        />
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div
-                            style={{
-                              fontSize: 12,
-                              fontWeight: 500,
-                              color: "#202124",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {att.filename}
-                          </div>
-                          <div style={{ fontSize: 11, color: "#5f6368" }}>
-                            {sizeLabel}
-                          </div>
-                        </div>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadAttachment(att.index, att.filename);
-                          }}
-                          title="Download"
-                          disabled={downloadingIdx === att.index}
-                          style={{
-                            background: "none",
-                            border: "none",
-                            cursor:
-                              downloadingIdx === att.index
-                                ? "default"
-                                : "pointer",
-                            color: "#5f6368",
-                            display: "flex",
-                            flexShrink: 0,
-                            padding: 0,
-                            opacity: downloadingIdx === att.index ? 0.4 : 1,
-                          }}
-                        >
-                          <MdDownload size={18} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Reply / Forward buttons */}
-        <div style={{ display: "flex", gap: 12, paddingLeft: 4 }}>
-          <button
-            onClick={onReply}
-            style={{
-              border: "0.5px solid #ccc",
-              background: "#fff",
-              borderRadius: 20,
-              padding: "8px 20px",
-              fontSize: 13,
-              cursor: "pointer",
-              color: "#202124",
-              fontWeight: 500,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <MdReply size={16} /> Reply
-          </button>
-          <button
-            style={{
-              border: "0.5px solid #ccc",
-              background: "#fff",
-              borderRadius: 20,
-              padding: "8px 20px",
-              fontSize: 13,
-              cursor: "pointer",
-              color: "#202124",
-              fontWeight: 500,
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <MdForward size={16} /> Forward
-          </button>
-        </div>
+              <MdForward size={16} /> Forward
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2293,7 +2292,11 @@ export default function GmailUI() {
     toastTimer.current = setTimeout(() => setToast(null), UNDO_DELAY);
 
     undoTimer.current = setTimeout(() => {
-      executeSend(draft);
+      executeSend(draft).then(() => {
+        // Refresh thread view so the sent reply appears immediately
+        const base = (draft.subject || "").replace(/^((Re|Fwd?|Fw|AW|WG):\s*)*/gi, "").trim();
+        if (base) queryClient.invalidateQueries({ queryKey: ["thread", base] });
+      });
     }, UNDO_DELAY);
   };
 
@@ -3060,7 +3063,8 @@ export default function GmailUI() {
                 <EmailDetail
                   email={selectedEmail}
                   onClose={() => setSelectedId(null)}
-                  onReply={() => setShowCompose(true)}
+                  onReply={(draft) => handlePendingSend(draft)}
+                  onForward={(draft) => handlePendingSend(draft)}
                   onDelete={() => {
                     patchList((list) =>
                       list.filter((em) => em.id !== selectedEmail.id),
