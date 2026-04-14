@@ -2856,22 +2856,50 @@ export default function GmailUI() {
                 color: activeNav === item.label ? "#001d35" : "#202124",
                 fontWeight: activeNav === item.label ? 600 : 400,
                 transition: "background 0.1s, margin 0.2s",
-                overflow: "hidden",
                 whiteSpace: "nowrap",
                 position: "relative",
               }}
             >
-              <item.icon size={20} style={{ flexShrink: 0 }} />
+              {/* Icon with dot anchored just outside its top-right corner */}
+              <span style={{ position: "relative", flexShrink: 0, display: "flex", overflow: "visible" }}>
+                <item.icon size={20} />
+                {!isExpanded && item.label === "Inbox" && inboxUnreadCount > 0 && (
+                  <span style={{
+                    position: "absolute",
+                    top: -5,
+                    right: -11,
+                    background: "#1a73e8",
+                    borderRadius: "50%",
+                    width: 8,
+                    height: 8,
+                    border: "2px solid #f6f8fc",
+                  }} />
+                )}
+                {!isExpanded && item.label === "Drafts" && draftsCount > 0 && (
+                  <span style={{
+                    position: "absolute",
+                    top: -5,
+                    right: -11,
+                    background: "#c5221f",
+                    borderRadius: "50%",
+                    width: 8,
+                    height: 8,
+                    border: "2px solid #f6f8fc",
+                  }} />
+                )}
+              </span>
               <span
                 style={{
                   flex: 1,
                   opacity: isExpanded ? 1 : 0,
                   transition: "opacity 0.1s",
                   overflow: "hidden",
+                  textOverflow: "ellipsis",
                 }}
               >
                 {item.label}
               </span>
+              {/* Expanded counts */}
               {item.label === "Inbox" && inboxUnreadCount > 0 && isExpanded && (
                 <span style={{ fontSize: 12, fontWeight: 600, color: activeNav === item.label ? "#001d35" : "#202124" }}>
                   {inboxUnreadCount}
@@ -2880,27 +2908,6 @@ export default function GmailUI() {
               {item.label === "Drafts" && draftsCount > 0 && isExpanded && (
                 <span style={{ fontSize: 12, fontWeight: 600, color: activeNav === item.label ? "#001d35" : "#c5221f" }}>
                   {draftsCount}
-                </span>
-              )}
-              {item.badge && !isExpanded && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: 4,
-                    right: 6,
-                    background: "#1a73e8",
-                    color: "#fff",
-                    fontSize: 10,
-                    fontWeight: 700,
-                    borderRadius: "50%",
-                    width: 16,
-                    height: 16,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  {item.badge}
                 </span>
               )}
             </div>
