@@ -2662,6 +2662,11 @@ export default function GmailUI() {
 
         {/* Gmail logo */}
         <span
+          onClick={() => {
+            setActiveNav("Inbox");
+            setSelectedId(null);
+            setCurrentPage(1);
+          }}
           style={{
             fontSize: 22,
             fontWeight: 400,
@@ -2669,6 +2674,7 @@ export default function GmailUI() {
             whiteSpace: "nowrap",
             marginRight: 16,
             userSelect: "none",
+            cursor: "pointer",
           }}
         >
           <span style={{ color: "#4285F4" }}>G</span>
