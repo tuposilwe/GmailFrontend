@@ -434,6 +434,17 @@ function RichTextEditor({ onChange, fullscreen, showToolbar, initialHTML }) {
   useEffect(() => {
     if (initialHTML && editorRef.current) {
       editorRef.current.innerHTML = initialHTML;
+      onChange(initialHTML);
+      // Place cursor at the very start so the user types above the prepopulated content
+      try {
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.setStart(editorRef.current, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (_) {}
+      editorRef.current.focus();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1419,7 +1430,13 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
             onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
             onMouseLeave={e => e.currentTarget.style.background = "none"}
           ><MdReply size={18} /></button>
-          <button onClick={() => onForwardClick()} title="Forward"
+          <button onClick={() => {
+              const origBody = detail?.html
+                ? detail.html
+                : `<pre style="font-size:13px;white-space:pre-wrap">${(detail?.text||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</pre>`;
+              const header = `<div style="color:#5f6368;font-size:13px;border-left:none;padding:0;margin-bottom:8px">---------- Forwarded message ---------<br>From: <b>${senderName}</b> &lt;${senderEmail}&gt;<br>Date: ${fullDate}<br>Subject: ${msgMeta.subject || ""}<br>To: ${toEmail || ""}</div>`;
+              onForwardClick(`<br><br>${header}${origBody}`);
+            }} title="Forward"
             style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", borderRadius: "50%", padding: 6, display: "flex" }}
             onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
             onMouseLeave={e => e.currentTarget.style.background = "none"}
@@ -1483,6 +1500,44 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
   );
 }
 
+// ContentEditable editor that sets initialHtml once on mount.
+// Using a separate component + key lets us remount cleanly when compose reopens.
+function BodyEditor({ initialHtml, editorRef, onKeyDown }) {
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = initialHtml || "";
+      // Place cursor at the start so the user types above forwarded content
+      try {
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.setStart(editorRef.current, 0);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (_) {}
+      editorRef.current.focus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div
+      ref={editorRef}
+      contentEditable
+      suppressContentEditableWarning
+      onKeyDown={onKeyDown}
+      style={{
+        minHeight: 120,
+        padding: "12px 16px",
+        fontSize: 14,
+        color: "#202124",
+        outline: "none",
+        lineHeight: 1.6,
+      }}
+    />
+  );
+}
+
 function EmailDetail({
   email,
   onClose,
@@ -1504,8 +1559,13 @@ function EmailDetail({
   const [inlineMode, setInlineMode] = useState(null); // null | 'reply' | 'forward'
   const [inlineRecipients, setInlineRecipients] = useState([]);
   const [inlineSubject, setInlineSubject] = useState("");
+  const [inlineInitialBody, setInlineInitialBody] = useState("");
+  const [inlineBodyHtml, setInlineBodyHtml] = useState("");
+  const [inlineKey, setInlineKey] = useState(0); // bumped on each open to remount RichTextEditor
+  const [showInlineFormatting, setShowInlineFormatting] = useState(false);
   const [inlineContacts, setInlineContacts] = useState([]);
   const inlineBodyRef = useRef(null);
+  const lastForwardBodyRef = useRef(""); // updated whenever a card's Forward is clicked
 
   useEffect(() => {
     const handleKey = (e) => {
@@ -1556,6 +1616,8 @@ function EmailDetail({
     setShowMoreMenu(false);
   };
 
+  const queryClient = useQueryClient();
+
   // ── Thread query ────────────────────────────────────────────────────────────
   const baseSubject = (email.subject || "").replace(/^((Re|Fwd?|Fw|AW|WG):\s*)*/gi, "").trim();
   const { data: threadMsgs = [] } = useQuery({
@@ -1568,7 +1630,7 @@ function EmailDetail({
   // Fallback: always show at least the current email
   const thread = threadMsgs.length > 0 ? threadMsgs : [{ id: email.id, folder, senderName: email.senderName || email.sender, senderEmail: email.senderEmail || "", subject: email.subject, date: email.date, time: email.time, avatar: email.avatar }];
 
-  const openInline = (mode, replySenderEmail, replySenderName) => {
+  const openInline = (mode, replySenderEmail, replySenderName, initialBody = "") => {
     const isReply = mode === 'reply';
     const subjectPrefix = isReply ? "Re:" : "Fwd:";
     const subject = email.subject?.startsWith(subjectPrefix)
@@ -1576,6 +1638,10 @@ function EmailDetail({
       : `${subjectPrefix} ${email.subject || ""}`;
     setInlineMode(mode);
     setInlineSubject(subject);
+    setInlineInitialBody(initialBody);
+    setInlineBodyHtml(initialBody);
+    setInlineKey(k => k + 1);
+    setShowInlineFormatting(false);
     setInlineRecipients(
       isReply && replySenderEmail
         ? [{ email: replySenderEmail, name: replySenderName || replySenderEmail }]
@@ -1584,15 +1650,36 @@ function EmailDetail({
     if (inlineContacts.length === 0) {
       fetch("/contacts").then(r => r.json()).then(setInlineContacts).catch(() => {});
     }
-    setTimeout(() => inlineBodyRef.current?.focus(), 50);
   };
 
   const handleReply = (senderEmail, senderName) => openInline('reply', senderEmail, senderName);
-  const handleForward = () => openInline('forward');
+  const handleForward = (body) => {
+    if (body !== undefined) lastForwardBodyRef.current = body;
+    openInline('forward', undefined, undefined, lastForwardBodyRef.current);
+  };
+
+  const handleBottomForward = async () => {
+    const lastMsg = thread[thread.length - 1];
+    const lastFolderParam = lastMsg.folder === "sent" ? "?folder=sent" : lastMsg.folder === "trash" ? "?folder=trash" : lastMsg.folder === "spam" ? "?folder=spam" : "";
+    let detail = queryClient.getQueryData(["email", lastMsg.id, lastMsg.folder]);
+    if (!detail) {
+      detail = await fetch(`/emails/${lastMsg.id}${lastFolderParam}`).then(r => r.json());
+    }
+    const sName = detail?.senderName || lastMsg.senderName || "";
+    const sEmail = detail?.senderEmail || lastMsg.senderEmail || "";
+    const toEmail = detail?.toEmail || "";
+    const fullDate = detail?.date
+      ? new Date(detail.date).toLocaleString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+      : lastMsg.time;
+    const origBody = detail?.html
+      ? detail.html
+      : `<pre style="font-size:13px;white-space:pre-wrap">${(detail?.text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</pre>`;
+    const header = `<div style="color:#5f6368;font-size:13px;border-left:none;padding:0;margin-bottom:8px">---------- Forwarded message ---------<br>From: <b>${sName}</b> &lt;${sEmail}&gt;<br>Date: ${fullDate}<br>Subject: ${lastMsg.subject || ""}<br>To: ${toEmail}</div>`;
+    handleForward(`<br><br>${header}${origBody}`);
+  };
 
   const handleInlineSend = () => {
-    const body = inlineBodyRef.current?.innerHTML || "";
-    const draft = { recipients: inlineRecipients, subject: inlineSubject, body, attachments: [] };
+    const draft = { recipients: inlineRecipients, subject: inlineSubject, body: inlineBodyHtml, attachments: [] };
     if (inlineMode === 'reply') onReply(draft);
     else onForward(draft);
     setInlineMode(null);
@@ -2015,7 +2102,7 @@ function EmailDetail({
             msgMeta={msg}
             initialExpanded={msg.id === email.id && msg.folder === folder}
             onReplyClick={(sEmail, sName) => handleReply(sEmail, sName)}
-            onForwardClick={() => handleForward()}
+            onForwardClick={(body) => handleForward(body)}
           />
         ))}
 
@@ -2070,23 +2157,13 @@ function EmailDetail({
               <span style={{ fontSize: 13, color: "#202124", flex: 1 }}>{inlineSubject}</span>
             </div>
 
-            {/* Body */}
-            <div
-              ref={inlineBodyRef}
-              contentEditable
-              suppressContentEditableWarning
-              style={{
-                minHeight: 120,
-                padding: "12px 16px",
-                fontSize: 14,
-                color: "#202124",
-                outline: "none",
-                lineHeight: 1.6,
-              }}
-              onKeyDown={(e) => {
-                // prevent arrow keys from navigating emails while typing
-                e.stopPropagation();
-              }}
+            {/* Body + formatting toolbar */}
+            <RichTextEditor
+              key={inlineKey}
+              initialHTML={inlineInitialBody}
+              onChange={setInlineBodyHtml}
+              fullscreen={false}
+              showToolbar={showInlineFormatting}
             />
 
             {/* Footer */}
@@ -2106,10 +2183,30 @@ function EmailDetail({
               >
                 Send
               </button>
+              {/* Aa — toggle rich text toolbar */}
+              <button
+                onClick={() => setShowInlineFormatting(v => !v)}
+                title="Formatting options"
+                style={{
+                  background: showInlineFormatting ? "#e8f0fe" : "none",
+                  border: "none",
+                  cursor: "pointer",
+                  borderRadius: 4,
+                  padding: "4px 7px",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: showInlineFormatting ? "#1967d2" : "#5f6368",
+                  fontFamily: "Arial, sans-serif",
+                }}
+                onMouseEnter={e => { if (!showInlineFormatting) e.currentTarget.style.background = "#f1f3f4"; }}
+                onMouseLeave={e => { if (!showInlineFormatting) e.currentTarget.style.background = showInlineFormatting ? "#e8f0fe" : "none"; }}
+              >
+                Aa
+              </button>
               <button
                 onClick={handleInlineDiscard}
                 title="Discard draft"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 6 }}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 6, marginLeft: "auto" }}
               >
                 <MdDelete size={18} />
               </button>
@@ -2136,7 +2233,7 @@ function EmailDetail({
               <MdReply size={16} /> Reply
             </button>
             <button
-              onClick={handleForward}
+              onClick={handleBottomForward}
               style={{
                 border: "0.5px solid #ccc",
                 background: "#fff",
