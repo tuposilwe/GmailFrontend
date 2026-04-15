@@ -2192,7 +2192,7 @@ function EmailDetail({
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showMoveMenu, setShowMoveMenu] = useState(false);
   const [mailboxes, setMailboxes] = useState([]);
-  const [acting, setActing] = useState(false);
+  // acting state removed — actions are now optimistic (fire-and-forget)
   const [inlineMode, setInlineMode] = useState(null); // null | 'reply' | 'forward'
   const [inlineRecipients, setInlineRecipients] = useState([]);
   const [inlineSubject, setInlineSubject] = useState("");
@@ -2250,20 +2250,13 @@ function EmailDetail({
     return () => window.removeEventListener("keydown", handleKey);
   }, [onPrev, onNext, inlineMode]);
 
-  const act = async (endpoint, method = "POST") => {
-    setActing(true);
-    try {
-      await fetch(`/emails/${email.id}/${endpoint}${folderParam}`, { method });
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setActing(false);
-    }
+  const act = (endpoint, method = "POST") => {
+    fetch(`/emails/${email.id}/${endpoint}${folderParam}`, { method }).catch(e => console.error(e));
   };
 
-  const handleArchive = async () => {
+  const handleArchive = () => {
     const savedEmail = email;
-    await act("archive");
+    act("archive");
     onToast?.("Conversation archived.", {
       label: "Undo",
       onClick: () => {
@@ -2274,9 +2267,9 @@ function EmailDetail({
     });
     onDelete();
   };
-  const handleSpam = async () => {
+  const handleSpam = () => {
     const savedEmail = email;
-    await act("spam");
+    act("spam");
     onToast?.("Conversation reported as spam.", {
       label: "Undo",
       onClick: () => {
@@ -2287,9 +2280,9 @@ function EmailDetail({
     });
     onDelete();
   };
-  const handleDelete = async () => {
+  const handleDelete = () => {
     const savedEmail = email;
-    await act("trash");
+    act("trash");
     onToast?.("Conversation moved to Trash.", {
       label: "Undo",
       onClick: () => {
@@ -2300,9 +2293,9 @@ function EmailDetail({
     });
     onDelete();
   };
-  const handleUnread = async () => {
+  const handleUnread = () => {
     const emailId = email.id;
-    await act("mark-unread");
+    act("mark-unread");
     onToast?.("Marked as unread.", {
       label: "Undo",
       onClick: () => {
@@ -2313,9 +2306,9 @@ function EmailDetail({
     });
     onMarkUnread();
   };
-  const handleRead = async () => {
+  const handleRead = () => {
     const emailId = email.id;
-    await act("mark-read");
+    act("mark-read");
     onToast?.("Marked as read.", {
       label: "Undo",
       onClick: () => {
@@ -2327,8 +2320,8 @@ function EmailDetail({
     onClose();
     setShowMoreMenu(false);
   };
-  const handleStar = async () => {
-    await act("star");
+  const handleStar = () => {
+    act("star");
     setShowMoreMenu(false);
   };
 
@@ -2439,21 +2432,14 @@ function EmailDetail({
     }
   };
 
-  const handleMove = async (mailboxPath) => {
-    setActing(true);
+  const handleMove = (mailboxPath) => {
     setShowMoveMenu(false);
-    try {
-      await fetch(`/emails/${email.id}/move`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mailbox: mailboxPath }),
-      });
-      onDelete();
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setActing(false);
-    }
+    fetch(`/emails/${email.id}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mailbox: mailboxPath }),
+    }).catch(e => console.error(e));
+    onDelete();
   };
 
   const iconBtn = (onClick, title, children) => (
@@ -2788,17 +2774,6 @@ function EmailDetail({
           </button>
         </div>
 
-        {/* Disable overlay while acting */}
-        {acting && (
-          <div
-            style={{
-              position: "absolute",
-              inset: 0,
-              zIndex: 50,
-              cursor: "wait",
-            }}
-          />
-        )}
       </div>
 
       {/* Subject line */}
