@@ -184,6 +184,83 @@ function VerificationBadge({ domain }) {
   );
 }
 
+function AvatarMenu({ userEmail, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const initials = userEmail ? userEmail[0].toUpperCase() : "?";
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      <div
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: 36, height: 36, borderRadius: "50%",
+          background: "#1a73e8", color: "#fff",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 14, fontWeight: 600, cursor: "pointer",
+          userSelect: "none",
+        }}
+      >
+        {initials}
+      </div>
+
+      {open && (
+        <div style={{
+          position: "absolute", top: "calc(100% + 8px)", right: 0,
+          background: "#fff", borderRadius: 12,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+          minWidth: 260, zIndex: 3000, overflow: "hidden",
+          padding: "16px 0 8px",
+        }}>
+          {/* Account info */}
+          <div style={{ padding: "0 20px 16px", borderBottom: "1px solid #e0e0e0", textAlign: "center" }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: "50%",
+              background: "#1a73e8", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 22, fontWeight: 600, margin: "0 auto 10px",
+            }}>
+              {initials}
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 500, color: "#202124" }}>
+              {userEmail?.split("@")[0]}
+            </div>
+            <div style={{ fontSize: 13, color: "#5f6368", marginTop: 2 }}>
+              {userEmail}
+            </div>
+          </div>
+
+          {/* Sign out */}
+          <div
+            onClick={onLogout}
+            style={{
+              padding: "10px 20px", fontSize: 14, color: "#202124",
+              cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2" strokeLinecap="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Sign out
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Avatar({ initials, color, size = 36 }) {
   return (
     <div
@@ -3551,7 +3628,7 @@ function SettingsModal({ onClose }) {
   );
 }
 
-export default function GmailUI() {
+export default function GmailUI({ userEmail, onLogout }) {
   const queryClient = useQueryClient();
 
   // ── Restore state from URL hash on first load ────────────────────────────────
@@ -4598,25 +4675,8 @@ export default function GmailUI() {
           </button>
         </Tooltip>
 
-        {/* Avatar */}
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: "50%",
-            background: "#1a73e8",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-          A
-        </div>
+        {/* Avatar + account menu */}
+        <AvatarMenu userEmail={userEmail} onLogout={onLogout} />
       </div>
       </div>
 
