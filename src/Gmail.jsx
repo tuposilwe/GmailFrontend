@@ -3359,7 +3359,39 @@ function SearchOverlay({
 
 // ── Settings Modal ────────────────────────────────────────────────────────────
 function SettingsModal({ onClose }) {
-  const [activeTab, setActiveTab] = useState("signature");
+  const [activeTab, setActiveTab] = useState("general");
+
+  // ── General settings state ─────────────────────────────────────────
+  const [displayName, setDisplayName] = useState("");
+  const [generalSaving, setGeneralSaving] = useState(false);
+  const [generalMsg, setGeneralMsg] = useState("");
+
+  useEffect(() => {
+    fetch("/user-settings")
+      .then(r => r.json())
+      .then(data => setDisplayName(data.display_name || ""))
+      .catch(() => {});
+  }, []);
+
+  const saveGeneral = async () => {
+    setGeneralSaving(true);
+    setGeneralMsg("");
+    try {
+      await fetch("/user-settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ display_name: displayName }),
+      });
+      setGeneralMsg("Saved!");
+    } catch {
+      setGeneralMsg("Error saving.");
+    } finally {
+      setGeneralSaving(false);
+      setTimeout(() => setGeneralMsg(""), 2500);
+    }
+  };
+
+  // ── Signature state ────────────────────────────────────────────────
   const [signatures, setSignatures] = useState([]);
   const [editingId, setEditingId] = useState(null); // null = new, number = existing
   const [editName, setEditName] = useState("Default");
@@ -3443,7 +3475,7 @@ function SettingsModal({ onClose }) {
     document.execCommand(cmd, false, val || null);
   };
 
-  const TABS = ["signature"];
+  const TABS = ["general", "signature"];
 
   return (
     <>
@@ -3486,6 +3518,57 @@ function SettingsModal({ onClose }) {
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+
+          {activeTab === "general" && (
+            <div style={{ maxWidth: 480 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: "#202124", marginBottom: 18 }}>Account settings</div>
+
+              {/* Display name */}
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: "block", fontSize: 13, color: "#5f6368", marginBottom: 6 }}>
+                  Name
+                </label>
+                <input
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder="e.g. John Smith"
+                  style={{
+                    width: "100%", boxSizing: "border-box",
+                    padding: "9px 12px", border: "1px solid #dadce0", borderRadius: 6,
+                    fontSize: 14, fontFamily: "inherit", outline: "none",
+                  }}
+                  onFocus={e => e.target.style.borderColor = "#1a73e8"}
+                  onBlur={e => e.target.style.borderColor = "#dadce0"}
+                />
+                <div style={{ fontSize: 12, color: "#5f6368", marginTop: 5 }}>
+                  This name appears in the <strong>From</strong> field when you send emails.
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <button
+                  onClick={saveGeneral}
+                  disabled={generalSaving}
+                  style={{
+                    background: "#1a73e8", color: "#fff", border: "none", borderRadius: 6,
+                    padding: "9px 22px", fontSize: 14, fontWeight: 500,
+                    cursor: generalSaving ? "default" : "pointer",
+                    opacity: generalSaving ? 0.7 : 1, fontFamily: "inherit",
+                  }}
+                  onMouseEnter={e => { if (!generalSaving) e.currentTarget.style.background = "#1765cc"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "#1a73e8"; }}
+                >
+                  {generalSaving ? "Saving…" : "Save changes"}
+                </button>
+                {generalMsg && (
+                  <span style={{ fontSize: 13, color: generalMsg === "Saved!" ? "#188038" : "#c5221f" }}>
+                    {generalMsg}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === "signature" && (
             <div style={{ display: "flex", gap: 20, minHeight: 340 }}>
               {/* Left: signature list */}
@@ -3740,7 +3823,8 @@ export default function GmailUI({ userEmail, onLogout }) {
 
     undoTimer.current = setTimeout(() => {
       executeSend(draft).then(() => {
-        // Refresh thread view so the sent reply appears immediately
+        // Refresh Sent folder and thread view so the sent message appears immediately
+        queryClient.invalidateQueries({ queryKey: ["emails", "Sent"] });
         const base = (draft.subject || "").replace(/^((Re|Fwd?|Fw|AW|WG):\s*)*/gi, "").trim();
         if (base) queryClient.invalidateQueries({ queryKey: ["thread", base] });
       });
