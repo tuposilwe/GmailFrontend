@@ -5749,9 +5749,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                             patchList(() => []);
                             setCheckedIds(new Set());
                             showToast(`${count} conversation${count !== 1 ? "s" : ""} permanently deleted.`);
-                            allIds.forEach((id) =>
-                              fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}),
-                            );
+                            fetch("/emails/trash", { method: "DELETE" }).catch(() => {});
                           }}
                         >
                           Empty Trash now
