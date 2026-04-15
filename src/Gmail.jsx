@@ -1476,81 +1476,84 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
           </span>
           <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
             {/* Minimize */}
-            <button
-              title={minimized ? "Restore" : "Minimize"}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleMinimize();
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#444746",
-                display: "flex",
-                alignItems: "center",
-                padding: "4px 6px",
-                borderRadius: 4,
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
-              }
-              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-            >
-              <MdRemove size={18} />
-            </button>
+            <Tooltip label={minimized ? "Restore" : "Minimize"} position="bottom">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleMinimize();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#444746",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "4px 6px",
+                  borderRadius: 4,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+                }
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <MdRemove size={18} />
+              </button>
+            </Tooltip>
             {/* Fullscreen toggle */}
-            <button
-              title={fullscreen ? "Exit full screen" : "Full screen"}
-              onClick={(e) => {
-                e.stopPropagation();
-                handleFullscreen();
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#444746",
-                display: "flex",
-                alignItems: "center",
-                padding: "4px 6px",
-                borderRadius: 4,
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
-              }
-              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-            >
-              {fullscreen ? (
-                <MdCloseFullscreen size={16} />
-              ) : (
-                <MdOpenInFull size={16} />
-              )}
-            </button>
+            <Tooltip label={fullscreen ? "Exit full screen" : "Full screen"} position="bottom">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleFullscreen();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#444746",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "4px 6px",
+                  borderRadius: 4,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+                }
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                {fullscreen ? (
+                  <MdCloseFullscreen size={16} />
+                ) : (
+                  <MdOpenInFull size={16} />
+                )}
+              </button>
+            </Tooltip>
             {/* Close */}
-            <button
-              title="Close"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleClose();
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "#444746",
-                display: "flex",
-                alignItems: "center",
-                padding: "4px 6px",
-                borderRadius: 4,
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
-              }
-              onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
-            >
-              <MdClose size={18} />
-            </button>
+            <Tooltip label="Save & close" position="bottom">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleClose();
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#444746",
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "4px 6px",
+                  borderRadius: 4,
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = "rgba(0,0,0,0.08)")
+                }
+                onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+              >
+                <MdClose size={18} />
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -1701,89 +1704,94 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
               </button>
 
               {/* Aa — Formatting Options (always visible, next to Send) */}
-              <button
-                title={showFormatting ? "Hide formatting" : "Formatting options"}
-                onClick={() => setShowFormatting(v => !v)}
-                style={{
-                  background: showFormatting ? "#e8f0fe" : "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "5px 8px",
-                  borderRadius: 4,
-                  color: showFormatting ? "#1967d2" : "#5f6368",
-                  display: "flex",
-                  alignItems: "center",
-                  lineHeight: 1,
-                  gap: 1,
-                }}
-                onMouseEnter={e => { if (!showFormatting) e.currentTarget.style.background = "#f1f3f4"; }}
-                onMouseLeave={e => { if (!showFormatting) e.currentTarget.style.background = "none"; }}
-              >
-                <span style={{ fontSize: 15, fontWeight: 700 }}>A</span>
-                <span style={{ fontSize: 11, fontWeight: 600 }}>a</span>
-              </button>
+              <Tooltip label={showFormatting ? "Hide formatting" : "Formatting options"} position="top">
+                <button
+                  onClick={() => setShowFormatting(v => !v)}
+                  style={{
+                    background: showFormatting ? "#e8f0fe" : "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "5px 8px",
+                    borderRadius: 4,
+                    color: showFormatting ? "#1967d2" : "#5f6368",
+                    display: "flex",
+                    alignItems: "center",
+                    lineHeight: 1,
+                    gap: 1,
+                  }}
+                  onMouseEnter={e => { if (!showFormatting) e.currentTarget.style.background = "#f1f3f4"; }}
+                  onMouseLeave={e => { if (!showFormatting) e.currentTarget.style.background = "none"; }}
+                >
+                  <span style={{ fontSize: 15, fontWeight: 700 }}>A</span>
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>a</span>
+                </button>
+              </Tooltip>
 
-              <button
-                title="Attach files"
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  padding: "6px 8px", borderRadius: "50%",
-                  color: attachments.length > 0 ? "#1a73e8" : "#5f6368",
-                  display: "flex", alignItems: "center", position: "relative",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              >
-                <MdAttachFile size={18} />
-                {attachments.length > 0 && (
-                  <span style={{
-                    position: "absolute", top: 2, right: 2,
-                    background: "#1a73e8", color: "#fff",
-                    borderRadius: "50%", width: 14, height: 14,
-                    fontSize: 9, fontWeight: 700,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                  }}>
-                    {attachments.length}
-                  </span>
-                )}
-              </button>
+              <Tooltip label="Attach files" position="top">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer",
+                    padding: "6px 8px", borderRadius: "50%",
+                    color: attachments.length > 0 ? "#1a73e8" : "#5f6368",
+                    display: "flex", alignItems: "center", position: "relative",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <MdAttachFile size={18} />
+                  {attachments.length > 0 && (
+                    <span style={{
+                      position: "absolute", top: 2, right: 2,
+                      background: "#1a73e8", color: "#fff",
+                      borderRadius: "50%", width: 14, height: 14,
+                      fontSize: 9, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      {attachments.length}
+                    </span>
+                  )}
+                </button>
+              </Tooltip>
 
               {/* Insert Link */}
-              <button
-                title="Insert link"
-                onClick={() => editorRef.current?.openLinkDialog()}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              >
-                <MdInsertLink size={18} />
-              </button>
+              <Tooltip label="Insert link" position="top">
+                <button
+                  onClick={() => editorRef.current?.openLinkDialog()}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <MdInsertLink size={18} />
+                </button>
+              </Tooltip>
 
               {/* Insert Emoji */}
-              <button
-                title="Insert emoji"
-                onClick={() => editorRef.current?.openEmojiPicker()}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center", fontSize: 16 }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              >😊</button>
+              <Tooltip label="Insert emoji" position="top">
+                <button
+                  onClick={() => editorRef.current?.openEmojiPicker()}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center", fontSize: 16 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >😊</button>
+              </Tooltip>
 
               {/* Insert Image */}
-              <button
-                title="Insert image"
-                onClick={() => editorRef.current?.triggerImageInsert()}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              >
-                <MdImage size={18} />
-              </button>
+              <Tooltip label="Insert image" position="top">
+                <button
+                  onClick={() => editorRef.current?.triggerImageInsert()}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <MdImage size={18} />
+                </button>
+              </Tooltip>
 
               {/* Insert Signature */}
               <div style={{ position: "relative" }} ref={signaturePopoverRef}>
+                <Tooltip label="Insert signature" position="top">
                 <button
-                  title="Insert signature"
                   onClick={() => {
                     setEditingSignature(false);
                     setShowSignaturePopover(v => !v);
@@ -1794,6 +1802,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                 >
                   <MdDraw size={18} />
                 </button>
+                </Tooltip>
                 {showSignaturePopover && (
                   <div style={{
                     position: "absolute", bottom: "calc(100% + 8px)", right: 0,
@@ -1926,32 +1935,35 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                 )}
               </div>
 
-              <button
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              >
-                <MdMoreVert size={18} />
-              </button>
+              <Tooltip label="More options" position="top">
+                <button
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <MdMoreVert size={18} />
+                </button>
+              </Tooltip>
               <div style={{ flex: 1 }} />
-              <button
-                title="Discard draft"
-                onClick={handleClose}
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "6px 8px",
-                  borderRadius: "50%",
-                  color: "#5f6368",
-                  display: "flex",
-                  alignItems: "center",
-                }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              >
-                <MdDelete size={18} />
-              </button>
+              <Tooltip label="Discard draft" position="top">
+                <button
+                  onClick={handleClose}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "6px 8px",
+                    borderRadius: "50%",
+                    color: "#5f6368",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <MdDelete size={18} />
+                </button>
+              </Tooltip>
             </div>
           </>
         )}
@@ -2995,47 +3007,59 @@ function EmailDetail({
               <button onClick={handleInlineSend} style={{ background: "#1a73e8", color: "#fff", border: "none", borderRadius: 20, padding: "8px 20px", fontSize: 13, fontWeight: 500, cursor: "pointer", flexShrink: 0 }}>Send</button>
 
               {/* Aa */}
-              <button onClick={() => setShowInlineFormatting(v => !v)} title="Formatting options"
-                style={{ background: showInlineFormatting ? "#e8f0fe" : "none", border: "none", cursor: "pointer", borderRadius: 4, padding: "5px 8px", fontSize: 13, fontWeight: 700, color: showInlineFormatting ? "#1967d2" : "#5f6368", fontFamily: "Arial, sans-serif", lineHeight: 1, display: "flex", alignItems: "center", gap: 1 }}
-                onMouseEnter={e => { if (!showInlineFormatting) e.currentTarget.style.background = "#f1f3f4"; }}
-                onMouseLeave={e => { if (!showInlineFormatting) e.currentTarget.style.background = "none"; }}
-              ><span style={{ fontSize: 15, fontWeight: 700 }}>A</span><span style={{ fontSize: 11, fontWeight: 600 }}>a</span></button>
+              <Tooltip label={showInlineFormatting ? "Hide formatting" : "Formatting options"} position="top">
+                <button onClick={() => setShowInlineFormatting(v => !v)}
+                  style={{ background: showInlineFormatting ? "#e8f0fe" : "none", border: "none", cursor: "pointer", borderRadius: 4, padding: "5px 8px", fontSize: 13, fontWeight: 700, color: showInlineFormatting ? "#1967d2" : "#5f6368", fontFamily: "Arial, sans-serif", lineHeight: 1, display: "flex", alignItems: "center", gap: 1 }}
+                  onMouseEnter={e => { if (!showInlineFormatting) e.currentTarget.style.background = "#f1f3f4"; }}
+                  onMouseLeave={e => { if (!showInlineFormatting) e.currentTarget.style.background = "none"; }}
+                ><span style={{ fontSize: 15, fontWeight: 700 }}>A</span><span style={{ fontSize: 11, fontWeight: 600 }}>a</span></button>
+              </Tooltip>
 
               {/* Attach */}
-              <button title="Attach files" onClick={() => { const i = document.createElement("input"); i.type = "file"; i.multiple = true; i.onchange = () => {}; i.click(); }}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              ><MdAttachFile size={18} /></button>
+              <Tooltip label="Attach files" position="top">
+                <button onClick={() => { const i = document.createElement("input"); i.type = "file"; i.multiple = true; i.onchange = () => {}; i.click(); }}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                ><MdAttachFile size={18} /></button>
+              </Tooltip>
 
               {/* Insert Link */}
-              <button title="Insert link" onClick={() => inlineEditorRef.current?.openLinkDialog()}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              ><MdInsertLink size={18} /></button>
+              <Tooltip label="Insert link" position="top">
+                <button onClick={() => inlineEditorRef.current?.openLinkDialog()}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                ><MdInsertLink size={18} /></button>
+              </Tooltip>
 
               {/* Emoji */}
-              <button title="Insert emoji" onClick={() => inlineEditorRef.current?.openEmojiPicker()}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center", fontSize: 16 }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              >😊</button>
+              <Tooltip label="Insert emoji" position="top">
+                <button onClick={() => inlineEditorRef.current?.openEmojiPicker()}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center", fontSize: 16 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >😊</button>
+              </Tooltip>
 
               {/* Insert Image */}
-              <button title="Insert image" onClick={() => inlineEditorRef.current?.triggerImageInsert()}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              ><MdImage size={18} /></button>
+              <Tooltip label="Insert image" position="top">
+                <button onClick={() => inlineEditorRef.current?.triggerImageInsert()}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: "#5f6368", display: "flex", alignItems: "center" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                ><MdImage size={18} /></button>
+              </Tooltip>
 
               {/* Signature */}
               <div style={{ position: "relative" }} ref={inlineSignaturePopoverRef}>
-                <button title="Insert signature" onClick={() => { setEditingInlineSignature(false); setShowInlineSignaturePopover(v => !v); }}
+                <Tooltip label="Insert signature" position="top">
+                <button onClick={() => { setEditingInlineSignature(false); setShowInlineSignaturePopover(v => !v); }}
                   style={{ background: showInlineSignaturePopover ? "#e8f0fe" : "none", border: "none", cursor: "pointer", padding: "6px 8px", borderRadius: "50%", color: showInlineSignaturePopover ? "#1967d2" : "#5f6368", display: "flex", alignItems: "center" }}
                   onMouseEnter={e => { if (!showInlineSignaturePopover) e.currentTarget.style.background = "#f1f3f4"; }}
                   onMouseLeave={e => { if (!showInlineSignaturePopover) e.currentTarget.style.background = "none"; }}
                 ><MdDraw size={18} /></button>
+                </Tooltip>
                 {showInlineSignaturePopover && (
                   <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: 0, zIndex: 500, background: "#fff", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.18)", border: "1px solid #e0e0e0", width: 300, padding: "14px 16px" }}>
                     <div style={{ fontSize: 13, fontWeight: 600, color: "#202124", marginBottom: 10 }}>Signature</div>
@@ -3113,11 +3137,13 @@ function EmailDetail({
                 )}
               </div>
 
-              <button onClick={handleInlineDiscard} title="Discard draft"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 6, marginLeft: "auto", borderRadius: "50%" }}
-                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
-                onMouseLeave={e => e.currentTarget.style.background = "none"}
-              ><MdDelete size={18} /></button>
+              <Tooltip label="Discard draft" position="top">
+                <button onClick={handleInlineDiscard}
+                  style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", display: "flex", padding: 6, marginLeft: "auto", borderRadius: "50%" }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                ><MdDelete size={18} /></button>
+              </Tooltip>
             </div>
           </div>
         ) : (
