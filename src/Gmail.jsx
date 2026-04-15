@@ -717,6 +717,11 @@ const RichTextEditor = forwardRef(function RichTextEditor({ onChange, fullscreen
     openLinkDialog() { saveSelection(); setShowLinkDialog(true); setShowEmojiPicker(false); },
     openEmojiPicker() { saveSelection(); setShowEmojiPicker(true); setShowLinkDialog(false); },
     triggerImageInsert() { saveSelection(); imageInputRef.current?.click(); },
+    appendToEnd(html) {
+      if (!editorRef.current) return;
+      editorRef.current.innerHTML += html;
+      onChange(editorRef.current.innerHTML);
+    },
   }));
 
   return (
@@ -1191,6 +1196,42 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
     () => localStorage.getItem("compose_signature_html") || ""
   );
   const [editingSignature, setEditingSignature] = useState(false);
+  const signatureAppended = useRef(false);
+
+  // Sync default signature from backend and auto-append into editor on mount
+  useEffect(() => {
+    // If opening from a draft that already has a body, don't auto-append signature
+    if (initialDraft?.body) return;
+    const cached = localStorage.getItem("compose_signature_html");
+
+    const appendSig = (html) => {
+      if (!html || signatureAppended.current) return;
+      signatureAppended.current = true;
+      const block = `<br/><div data-signature="1" style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${html}</div>`;
+      // Use setTimeout(0) so the editor has finished its first render before we append
+      setTimeout(() => {
+        if (editorRef.current?.appendToEnd) {
+          editorRef.current.appendToEnd(block);
+        }
+      }, 0);
+    };
+
+    if (cached) {
+      setSignatureHtml(cached);
+      appendSig(cached);
+    }
+    fetch("/signature")
+      .then(r => r.json())
+      .then(data => {
+        if (data.html) {
+          setSignatureHtml(data.html);
+          localStorage.setItem("compose_signature_html", data.html);
+          if (!cached) appendSig(data.html);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Close signature popover on outside click
   useEffect(() => {
@@ -2095,6 +2136,19 @@ function EmailDetail({
   );
   const [editingInlineSignature, setEditingInlineSignature] = useState(false);
 
+  // Sync default signature from backend
+  useEffect(() => {
+    fetch("/signature")
+      .then(r => r.json())
+      .then(data => {
+        if (data.html) {
+          setInlineSignatureHtml(data.html);
+          localStorage.setItem("compose_signature_html", data.html);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Close inline signature popover on outside click
   useEffect(() => {
     const handler = (e) => {
@@ -2235,10 +2289,15 @@ function EmailDetail({
     const subject = email.subject?.startsWith(subjectPrefix)
       ? email.subject
       : `${subjectPrefix} ${email.subject || ""}`;
+    const sig = localStorage.getItem("compose_signature_html") || inlineSignatureHtml;
+    const sigBlock = sig
+      ? `<br/><div data-signature="1" style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${sig}</div>`
+      : "";
+    const bodyWithSig = sigBlock + initialBody;
     setInlineMode(mode);
     setInlineSubject(subject);
-    setInlineInitialBody(initialBody);
-    setInlineBodyHtml(initialBody);
+    setInlineInitialBody(bodyWithSig);
+    setInlineBodyHtml(bodyWithSig);
     setInlineKey(k => k + 1);
     setShowInlineFormatting(false);
     setInlineRecipients(
@@ -3221,6 +3280,277 @@ function SearchOverlay({
   );
 }
 
+// ── Settings Modal ────────────────────────────────────────────────────────────
+function SettingsModal({ onClose }) {
+  const [activeTab, setActiveTab] = useState("signature");
+  const [signatures, setSignatures] = useState([]);
+  const [editingId, setEditingId] = useState(null); // null = new, number = existing
+  const [editName, setEditName] = useState("Default");
+  const [isDefault, setIsDefault] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState("");
+  const sigEditorRef = useRef(null);
+  const sigImgInputRef = useRef(null);
+
+  // Load signatures from backend
+  useEffect(() => {
+    fetch("/signatures")
+      .then(r => r.json())
+      .then(rows => {
+        setSignatures(rows);
+        if (rows.length === 0) {
+          // Start in create mode
+          setEditingId(null);
+          setEditName("Default");
+          setIsDefault(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const startNew = () => {
+    setEditingId(null);
+    setEditName("Default");
+    setIsDefault(signatures.length === 0);
+    setSaveMsg("");
+    if (sigEditorRef.current) sigEditorRef.current.innerHTML = "";
+  };
+
+  const startEdit = (sig) => {
+    setEditingId(sig.id);
+    setEditName(sig.name);
+    setIsDefault(sig.is_default === 1);
+    setSaveMsg("");
+    setTimeout(() => {
+      if (sigEditorRef.current) sigEditorRef.current.innerHTML = sig.html;
+    }, 0);
+  };
+
+  const handleSave = async () => {
+    const html = sigEditorRef.current?.innerHTML || "";
+    setSaving(true);
+    setSaveMsg("");
+    try {
+      const res = await fetch("/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: editingId || undefined, name: editName, html, is_default: isDefault }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        // Also sync to localStorage so compose window picks it up if default
+        if (isDefault) localStorage.setItem("compose_signature_html", html);
+        setSaveMsg("Saved!");
+        // Reload list
+        const rows = await fetch("/signatures").then(r => r.json());
+        setSignatures(rows);
+        if (!editingId) setEditingId(data.id);
+      }
+    } catch {
+      setSaveMsg("Error saving.");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(""), 2500);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    await fetch(`/signature/${id}`, { method: "DELETE" });
+    const rows = await fetch("/signatures").then(r => r.json());
+    setSignatures(rows);
+    if (editingId === id) startNew();
+  };
+
+  const execCmd = (cmd, val) => {
+    sigEditorRef.current?.focus();
+    document.execCommand(cmd, false, val || null);
+  };
+
+  const TABS = ["signature"];
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 2000 }}
+      />
+      {/* Modal */}
+      <div style={{
+        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+        background: "#fff", borderRadius: 12, boxShadow: "0 8px 40px rgba(0,0,0,0.22)",
+        zIndex: 2001, width: 680, maxWidth: "96vw", maxHeight: "88vh",
+        display: "flex", flexDirection: "column", overflow: "hidden",
+      }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", padding: "18px 24px 14px", borderBottom: "1px solid #e0e0e0" }}>
+          <span style={{ fontSize: 18, fontWeight: 600, color: "#202124", flex: 1 }}>Settings</span>
+          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: 4, borderRadius: "50%", display: "flex" }}
+            onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}>
+            <MdClose size={22} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", borderBottom: "1px solid #e0e0e0", padding: "0 24px" }}>
+          {TABS.map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              style={{
+                background: "none", border: "none", cursor: "pointer", padding: "10px 16px",
+                fontSize: 14, fontWeight: 500, color: activeTab === tab ? "#1a73e8" : "#5f6368",
+                borderBottom: activeTab === tab ? "2px solid #1a73e8" : "2px solid transparent",
+                fontFamily: "inherit", marginBottom: -1,
+              }}>
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+          {activeTab === "signature" && (
+            <div style={{ display: "flex", gap: 20, minHeight: 340 }}>
+              {/* Left: signature list */}
+              <div style={{ width: 180, flexShrink: 0, borderRight: "1px solid #e8eaed", paddingRight: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: "#5f6368", marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.05em" }}>Signatures</div>
+                {signatures.map(sig => (
+                  <div key={sig.id}
+                    onClick={() => startEdit(sig)}
+                    style={{
+                      padding: "8px 10px", borderRadius: 6, cursor: "pointer", marginBottom: 4,
+                      background: editingId === sig.id ? "#e8f0fe" : "none",
+                      display: "flex", alignItems: "center", justifyContent: "space-between",
+                    }}
+                    onMouseEnter={e => { if (editingId !== sig.id) e.currentTarget.style.background = "#f1f3f4"; }}
+                    onMouseLeave={e => { if (editingId !== sig.id) e.currentTarget.style.background = "none"; }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: "#202124", fontWeight: editingId === sig.id ? 600 : 400 }}>{sig.name}</div>
+                      {sig.is_default === 1 && <div style={{ fontSize: 11, color: "#1a73e8" }}>Default</div>}
+                    </div>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(sig.id); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: 2, borderRadius: "50%", display: "flex" }}
+                      title="Delete">
+                      <MdClose size={14} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={startNew}
+                  style={{
+                    marginTop: 8, width: "100%", background: "none", border: "1px dashed #c5c8cd",
+                    borderRadius: 6, cursor: "pointer", padding: "7px 10px", fontSize: 13,
+                    color: "#1a73e8", display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                  <MdAdd size={16} /> New signature
+                </button>
+              </div>
+
+              {/* Right: editor */}
+              <div style={{ flex: 1 }}>
+                {/* Name */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 13, color: "#5f6368", display: "block", marginBottom: 4 }}>Signature name</label>
+                  <input
+                    value={editName}
+                    onChange={e => setEditName(e.target.value)}
+                    style={{ width: "100%", padding: "7px 10px", border: "1px solid #dadce0", borderRadius: 6, fontSize: 14, fontFamily: "inherit", outline: "none", boxSizing: "border-box" }}
+                    onFocus={e => e.target.style.borderColor = "#1a73e8"}
+                    onBlur={e => e.target.style.borderColor = "#dadce0"}
+                    placeholder="Signature name"
+                  />
+                </div>
+
+                {/* Rich-text toolbar */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 2, marginBottom: 6, padding: "4px 6px", border: "1px solid #dadce0", borderBottom: "none", borderRadius: "6px 6px 0 0", background: "#f8f9fa" }}>
+                  {[
+                    { cmd: "bold", icon: <MdFormatBold size={18} />, title: "Bold" },
+                    { cmd: "italic", icon: <MdFormatItalic size={18} />, title: "Italic" },
+                    { cmd: "underline", icon: <MdFormatUnderlined size={18} />, title: "Underline" },
+                  ].map(({ cmd, icon, title }) => (
+                    <button key={cmd} onMouseDown={e => { e.preventDefault(); execCmd(cmd); }}
+                      title={title}
+                      style={{ background: "none", border: "none", cursor: "pointer", padding: "3px 5px", borderRadius: 4, color: "#5f6368", display: "flex" }}
+                      onMouseEnter={e => e.currentTarget.style.background = "#e8eaed"}
+                      onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                      {icon}
+                    </button>
+                  ))}
+                  <div style={{ width: 1, background: "#e0e0e0", margin: "2px 4px" }} />
+                  <select onChange={e => execCmd("fontSize", e.target.value)} defaultValue=""
+                    style={{ border: "none", background: "none", fontSize: 12, color: "#5f6368", cursor: "pointer", padding: "2px 2px" }}>
+                    <option value="" disabled>Size</option>
+                    {[1,2,3,4,5].map(s => <option key={s} value={s}>{["Tiny","Small","Normal","Large","Huge"][s-1]}</option>)}
+                  </select>
+                  <div style={{ width: 1, background: "#e0e0e0", margin: "2px 4px" }} />
+                  <label title="Insert image" style={{ cursor: "pointer", display: "flex", alignItems: "center", padding: "3px 5px", borderRadius: 4, color: "#5f6368" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#e8eaed"}
+                    onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                    <MdImage size={18} />
+                    <input ref={sigImgInputRef} type="file" accept="image/*" style={{ display: "none" }}
+                      onChange={ev => {
+                        const file = ev.target.files[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = e2 => {
+                          sigEditorRef.current?.focus();
+                          document.execCommand("insertHTML", false, `<img src="${e2.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`);
+                        };
+                        reader.readAsDataURL(file);
+                        ev.target.value = "";
+                      }} />
+                  </label>
+                </div>
+
+                {/* Editor */}
+                <div
+                  ref={sigEditorRef}
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-placeholder="Create your email signature..."
+                  style={{
+                    minHeight: 140, border: "1px solid #dadce0", borderRadius: "0 0 6px 6px",
+                    padding: "10px 12px", fontSize: 14, outline: "none", lineHeight: 1.6,
+                    fontFamily: "inherit", overflowY: "auto",
+                  }}
+                  onFocus={e => e.currentTarget.style.borderColor = "#1a73e8"}
+                  onBlur={e => e.currentTarget.style.borderColor = "#dadce0"}
+                />
+
+                {/* Default checkbox */}
+                <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, cursor: "pointer", fontSize: 14, color: "#202124" }}>
+                  <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} style={{ width: 15, height: 15, accentColor: "#1a73e8" }} />
+                  Use as default signature
+                </label>
+
+                {/* Save button */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 16 }}>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    style={{
+                      background: "#1a73e8", color: "#fff", border: "none", borderRadius: 6,
+                      padding: "9px 22px", fontSize: 14, fontWeight: 500, cursor: saving ? "default" : "pointer",
+                      opacity: saving ? 0.7 : 1, fontFamily: "inherit",
+                    }}
+                    onMouseEnter={e => { if (!saving) e.currentTarget.style.background = "#1765cc"; }}
+                    onMouseLeave={e => e.currentTarget.style.background = saving ? "#1a73e8" : "#1a73e8"}>
+                    {saving ? "Saving…" : "Save changes"}
+                  </button>
+                  {saveMsg && <span style={{ fontSize: 13, color: saveMsg === "Saved!" ? "#188038" : "#c5221f" }}>{saveMsg}</span>}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function GmailUI() {
   const queryClient = useQueryClient();
 
@@ -3252,6 +3582,7 @@ export default function GmailUI() {
   );
   const [showCompose, setShowCompose] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [toast, setToast] = useState(null); // null | { message, actions: [{label,onClick}] }
   const toastTimer = useRef(null);
   const pendingOpenLatestSent = useRef(false);
@@ -4258,6 +4589,7 @@ export default function GmailUI() {
         {/* Settings */}
         <Tooltip label="Settings" position="bottom">
           <button
+            onClick={() => setShowSettingsModal(true)}
             style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#e0e0e0")}
             onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
@@ -6028,6 +6360,11 @@ export default function GmailUI() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
       )}
 
       {/* Snooze time picker */}
