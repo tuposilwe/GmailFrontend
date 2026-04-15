@@ -1256,6 +1256,10 @@ const RichTextEditor = forwardRef(function RichTextEditor({ onChange, fullscreen
 
 function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinimize }) {
   const [recipients, setRecipients] = useState(initialDraft?.recipients || []);
+  const [cc, setCc]   = useState(initialDraft?.cc  || []);
+  const [bcc, setBcc] = useState(initialDraft?.bcc || []);
+  const [showCc, setShowCc]   = useState((initialDraft?.cc?.length  || 0) > 0);
+  const [showBcc, setShowBcc] = useState((initialDraft?.bcc?.length || 0) > 0);
   const [subject, setSubject] = useState(initialDraft?.subject || "");
   const [body, setBody] = useState(initialDraft?.body || "");
   const [sending, setSending] = useState(false);
@@ -1339,7 +1343,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
   const handleSend = () => {
     // Hand the draft to the parent — the parent delays the actual send
     // for 5 s so the user can click Undo.
-    onPendingSend({ recipients, subject, body, attachments, draftUid: initialDraft?.draftUid });
+    onPendingSend({ recipients, cc, bcc, subject, body, attachments, draftUid: initialDraft?.draftUid });
     onClose();
   };
 
@@ -1360,6 +1364,8 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
 
     const fd = new FormData();
     fd.append("to", recipients.map((r) => r.email).join(", "));
+    if (cc.length)  fd.append("cc",  cc.map((r) => r.email).join(", "));
+    if (bcc.length) fd.append("bcc", bcc.map((r) => r.email).join(", "));
     fd.append("subject", subject);
     fd.append("html", body);
     fd.append("text", body.replace(/<[^>]*>/g, ""));
@@ -1574,7 +1580,33 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                 onChange={setRecipients}
                 preloaded={preloadedContacts}
               />
+              <div style={{ display: "flex", gap: 4, paddingTop: 4, flexShrink: 0 }}>
+                {!showCc && (
+                  <button onClick={() => setShowCc(true)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#5f6368", padding: "0 4px", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#1a73e8"}
+                    onMouseLeave={e => e.currentTarget.style.color = "#5f6368"}>Cc</button>
+                )}
+                {!showBcc && (
+                  <button onClick={() => setShowBcc(true)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#5f6368", padding: "0 4px", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#1a73e8"}
+                    onMouseLeave={e => e.currentTarget.style.color = "#5f6368"}>Bcc</button>
+                )}
+              </div>
             </div>
+            {showCc && (
+              <div style={{ ...fieldStyle, alignItems: "flex-start", flexWrap: "wrap", minHeight: 38 }}>
+                <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28, paddingTop: 4 }}>Cc</span>
+                <ToField recipients={cc} onChange={setCc} preloaded={preloadedContacts} />
+                <button onClick={() => { setShowCc(false); setCc([]); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: "4px 4px 0", flexShrink: 0, display: "flex" }}><MdClose size={16} /></button>
+              </div>
+            )}
+            {showBcc && (
+              <div style={{ ...fieldStyle, alignItems: "flex-start", flexWrap: "wrap", minHeight: 38 }}>
+                <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28, paddingTop: 4 }}>Bcc</span>
+                <ToField recipients={bcc} onChange={setBcc} preloaded={preloadedContacts} />
+                <button onClick={() => { setShowBcc(false); setBcc([]); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: "4px 4px 0", flexShrink: 0, display: "flex" }}><MdClose size={16} /></button>
+              </div>
+            )}
             <div style={fieldStyle}>
               <span style={{ fontSize: 13, color: "#5f6368", minWidth: 28 }}>
                 Subject
@@ -2195,6 +2227,10 @@ function EmailDetail({
   // acting state removed — actions are now optimistic (fire-and-forget)
   const [inlineMode, setInlineMode] = useState(null); // null | 'reply' | 'forward'
   const [inlineRecipients, setInlineRecipients] = useState([]);
+  const [inlineCc, setInlineCc]   = useState([]);
+  const [inlineBcc, setInlineBcc] = useState([]);
+  const [showInlineCc, setShowInlineCc]   = useState(false);
+  const [showInlineBcc, setShowInlineBcc] = useState(false);
   const [inlineSubject, setInlineSubject] = useState("");
   const [inlineInitialBody, setInlineInitialBody] = useState("");
   const [inlineBodyHtml, setInlineBodyHtml] = useState("");
@@ -2370,6 +2406,10 @@ function EmailDetail({
     setInlineBodyHtml(bodyWithSig);
     setInlineKey(k => k + 1);
     setShowInlineFormatting(false);
+    setInlineCc([]);
+    setInlineBcc([]);
+    setShowInlineCc(false);
+    setShowInlineBcc(false);
     setInlineRecipients(
       isReply && replySenderEmail
         ? [{ email: replySenderEmail, name: replySenderName || replySenderEmail }]
@@ -2407,7 +2447,7 @@ function EmailDetail({
   };
 
   const handleInlineSend = () => {
-    const draft = { recipients: inlineRecipients, subject: inlineSubject, body: inlineBodyHtml, attachments: [] };
+    const draft = { recipients: inlineRecipients, cc: inlineCc, bcc: inlineBcc, subject: inlineSubject, body: inlineBodyHtml, attachments: [] };
     if (inlineMode === 'reply') onReply(draft);
     else onForward(draft);
     setInlineMode(null);
@@ -2906,7 +2946,33 @@ function EmailDetail({
                 onChange={setInlineRecipients}
                 preloaded={inlineContacts}
               />
+              <div style={{ display: "flex", gap: 2, flexShrink: 0 }}>
+                {!showInlineCc && (
+                  <button onClick={() => setShowInlineCc(true)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#5f6368", padding: "0 4px", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#1a73e8"}
+                    onMouseLeave={e => e.currentTarget.style.color = "#5f6368"}>Cc</button>
+                )}
+                {!showInlineBcc && (
+                  <button onClick={() => setShowInlineBcc(true)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#5f6368", padding: "0 4px", fontFamily: "inherit" }}
+                    onMouseEnter={e => e.currentTarget.style.color = "#1a73e8"}
+                    onMouseLeave={e => e.currentTarget.style.color = "#5f6368"}>Bcc</button>
+                )}
+              </div>
             </div>
+            {showInlineCc && (
+              <div style={{ display: "flex", alignItems: "center", borderBottom: "0.5px solid #e0e0e0", padding: "4px 16px", gap: 8 }}>
+                <span style={{ fontSize: 13, color: "#5f6368", flexShrink: 0 }}>Cc</span>
+                <ToField recipients={inlineCc} onChange={setInlineCc} preloaded={inlineContacts} />
+                <button onClick={() => { setShowInlineCc(false); setInlineCc([]); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: 0, display: "flex", flexShrink: 0 }}><MdClose size={16} /></button>
+              </div>
+            )}
+            {showInlineBcc && (
+              <div style={{ display: "flex", alignItems: "center", borderBottom: "0.5px solid #e0e0e0", padding: "4px 16px", gap: 8 }}>
+                <span style={{ fontSize: 13, color: "#5f6368", flexShrink: 0 }}>Bcc</span>
+                <ToField recipients={inlineBcc} onChange={setInlineBcc} preloaded={inlineContacts} />
+                <button onClick={() => { setShowInlineBcc(false); setInlineBcc([]); }} style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: 0, display: "flex", flexShrink: 0 }}><MdClose size={16} /></button>
+              </div>
+            )}
 
             {/* Subject row (read-only, dimmed) */}
             <div style={{ display: "flex", alignItems: "center", borderBottom: "0.5px solid #e0e0e0", padding: "6px 16px", gap: 8 }}>
@@ -3651,6 +3717,8 @@ export default function GmailUI({ userEmail, onLogout }) {
   const executeSend = async (draft) => {
     const fd = new FormData();
     fd.append("to", draft.recipients.map((r) => r.email).join(", "));
+    if (draft.cc?.length)  fd.append("cc",  draft.cc.map((r) => r.email).join(", "));
+    if (draft.bcc?.length) fd.append("bcc", draft.bcc.map((r) => r.email).join(", "));
     fd.append("subject", draft.subject);
     fd.append("html", draft.body);
     fd.append("text", draft.body.replace(/<[^>]*>/g, ""));
