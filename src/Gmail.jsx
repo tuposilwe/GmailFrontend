@@ -799,6 +799,7 @@ const RichTextEditor = forwardRef(function RichTextEditor({ onChange, fullscreen
       editorRef.current.innerHTML += html;
       onChange(editorRef.current.innerHTML);
     },
+    getHTML() { return editorRef.current?.innerHTML || ""; },
   }));
 
   return (
@@ -1255,6 +1256,7 @@ const RichTextEditor = forwardRef(function RichTextEditor({ onChange, fullscreen
 });
 
 function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinimize }) {
+  const queryClient = useQueryClient();
   const [recipients, setRecipients] = useState(initialDraft?.recipients || []);
   const [cc, setCc]   = useState(initialDraft?.cc  || []);
   const [bcc, setBcc] = useState(initialDraft?.bcc || []);
@@ -1349,10 +1351,17 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
 
   // Save current compose content to the IMAP Drafts folder
   const saveDraft = () => {
+    // Read body directly from the DOM — React state can be stale if the
+    // editor's last onChange hasn't caused a re-render yet (e.g. signature
+    // was just appended or the user closed immediately after typing).
+    const liveHtml = editorRef.current?.getHTML?.() || body;
+    const liveText = liveHtml.replace(/<[^>]*>/g, "").trim();
+
     const hasContent =
       recipients.length > 0 ||
       subject.trim() ||
-      body.replace(/<[^>]*>/g, "").trim();
+      liveText ||
+      liveHtml.trim();
 
     // If opened from an existing draft, delete the original first so we
     // don't accumulate duplicates (whether or not we save new content).
@@ -1367,11 +1376,13 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
     if (cc.length)  fd.append("cc",  cc.map((r) => r.email).join(", "));
     if (bcc.length) fd.append("bcc", bcc.map((r) => r.email).join(", "));
     fd.append("subject", subject);
-    fd.append("html", body);
-    fd.append("text", body.replace(/<[^>]*>/g, ""));
+    fd.append("html", liveHtml);
+    fd.append("text", liveText);
     attachments.forEach((f) => fd.append("attachments", f));
 
-    fetch("/emails/drafts", { method: "POST", body: fd }).catch(() => {});
+    fetch("/emails/drafts", { method: "POST", body: fd })
+      .then(() => queryClient.invalidateQueries({ queryKey: ["emails", "Drafts"] }))
+      .catch((err) => console.error("Save draft failed:", err));
   };
 
   const handleClose = () => {
