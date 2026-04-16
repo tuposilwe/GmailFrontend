@@ -4491,7 +4491,7 @@ export default function GmailUI({ userEmail, onLogout }) {
             cursor: "pointer",
           }}
         >
-          <span style={{ color: "#5f6368" }}>Gmail</span>
+          <span style={{ color: "#5f6368" }}>Yanamail</span>
         </span>
 
         {/* Search bar */}
