@@ -2002,6 +2002,8 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
   const senderName = detail?.senderName || msgMeta.senderName;
   const senderEmail = detail?.senderEmail || msgMeta.senderEmail || "";
   const toEmail = detail?.toEmail || "";
+  const ccList = detail?.cc || [];
+  const bccList = detail?.bcc || [];
   const fullDate = detail?.date
     ? new Date(detail.date).toLocaleString([], { weekday: "short", month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
     : msgMeta.time;
@@ -2092,24 +2094,43 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
             </div>
             <span style={{ fontSize: 12, color: "#5f6368", flexShrink: 0 }}>{fullDate}</span>
           </div>
+          
+          {/* Details dropdown trigger */}
           <div
             style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3, cursor: "pointer" }}
             onClick={() => setShowDetails(v => !v)}
           >
-            <span style={{ fontSize: 12, color: "#5f6368" }}>to {toEmail || "me"}</span>
+            <span style={{ fontSize: 12, color: "#5f6368" }}>
+              to {toEmail || "me"}
+              {(ccList.length > 0 || bccList.length > 0) && (
+                <span style={{ marginLeft: 4, color: "#1a73e8" }}>
+                  {ccList.length > 0 && ` +${ccList.length} cc`}
+                  {bccList.length > 0 && ` +${bccList.length} bcc`}
+                </span>
+              )}
+            </span>
             <MdKeyboardArrowDown size={16} color="#5f6368"
               style={{ transform: showDetails ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
             />
           </div>
+          
+          {/* Expanded details with CC and BCC */}
           {showDetails && (
             <div style={{ marginTop: 8, fontSize: 12, color: "#5f6368", lineHeight: 1.8 }}>
               <div><span style={{ display: "inline-block", minWidth: 40 }}>from:</span> {senderName} &lt;{senderEmail}&gt;</div>
               <div><span style={{ display: "inline-block", minWidth: 40 }}>to:</span> {toEmail || "me"}</div>
+              {ccList.length > 0 && (
+                <div><span style={{ display: "inline-block", minWidth: 40 }}>cc:</span> {ccList.map(c => `${c.name || c.email} <${c.email}>`).join(", ")}</div>
+              )}
+              {bccList.length > 0 && (
+                <div><span style={{ display: "inline-block", minWidth: 40 }}>bcc:</span> {bccList.map(b => `${b.name || b.email} <${b.email}>`).join(", ")}</div>
+              )}
               <div><span style={{ display: "inline-block", minWidth: 40 }}>date:</span> {fullDate}</div>
               <div><span style={{ display: "inline-block", minWidth: 40 }}>subject:</span> {msgMeta.subject}</div>
             </div>
           )}
         </div>
+        
         {/* Reply/Forward icon buttons */}
         <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
           <button onClick={() => onReplyClick(senderEmail, senderName)} title="Reply"
