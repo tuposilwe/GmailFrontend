@@ -1356,6 +1356,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
     // was just appended or the user closed immediately after typing).
     const liveHtml = editorRef.current?.getHTML?.() || body;
     const liveText = liveHtml.replace(/<[^>]*>/g, "").trim();
+    localStorage.removeItem('compose_backup_body');
 
     const hasContent =
       recipients.length > 0 ||
@@ -1632,8 +1633,18 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
               />
             </div>
 
-            <RichTextEditor ref={editorRef} onChange={setBody} fullscreen={fullscreen} showToolbar={showFormatting} initialHTML={initialDraft?.body} />
-
+            <RichTextEditor
+                ref={editorRef} 
+                onChange={(html) => {
+                  setBody(html);
+                  // Also save to localStorage as backup
+                  if (html) localStorage.setItem('compose_backup_body', html);
+                }} 
+                fullscreen={fullscreen} 
+                showToolbar={showFormatting} 
+                initialHTML={initialDraft?.body || body || localStorage.getItem('compose_backup_body') || ''}
+            />
+            
             {/* Attachment chips */}
             {attachments.length > 0 && (
               <div style={{
