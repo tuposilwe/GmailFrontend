@@ -1644,7 +1644,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                 }} 
                 fullscreen={fullscreen} 
                 showToolbar={showFormatting} 
-                initialHTML={initialDraft?.body || body || localStorage.getItem('compose_backup_body') || ''}
+                initialHTML={body || localStorage.getItem('compose_backup_body') || ''}
             />
             
             {/* Attachment chips */}
