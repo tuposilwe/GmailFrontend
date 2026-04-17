@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef, useMemo, forwardRef, useImperativeHandle } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Document, Page, pdfjs } from "react-pdf";
+import "react-pdf/dist/Page/AnnotationLayer.css";
+import "react-pdf/dist/Page/TextLayer.css";
 import {
   MdInbox,
   MdStar,
@@ -62,7 +65,10 @@ import {
   MdSettings,
   MdAdd,
   MdDraw,
+  MdVisibility,
 } from "react-icons/md";
+
+pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
 const API_URL = process.env.REACT_APP_API_URL || "";
 
@@ -1990,12 +1996,242 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
   );
 }
 
+// ── PDF thumbnail — renders first page inline inside the attachment card ──────
+function PdfThumbnail({ url }) {
+  const [pageReady, setPageReady] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  return (
+    <div style={{ width: "100%", height: "100%", overflow: "hidden", position: "relative", pointerEvents: "none" }}>
+      {!loadError && (
+        <div style={{
+          position: "absolute", top: 0, left: "50%", transform: "translateX(-50%)",
+          opacity: pageReady ? 1 : 0, transition: "opacity 0.25s",
+        }}>
+          <Document
+            file={{ url, withCredentials: true }}
+            onLoadError={() => setLoadError(true)}
+            loading={null}
+            error={null}
+          >
+            <Page
+              pageNumber={1}
+              width={220}
+              renderTextLayer={false}
+              renderAnnotationLayer={false}
+              onRenderSuccess={() => setPageReady(true)}
+            />
+          </Document>
+        </div>
+      )}
+      {/* Show icon while loading or on error */}
+      {(!pageReady || loadError) && (
+        <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <MdPictureAsPdf size={36} color="#EA4335" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Attachment preview helpers ────────────────────────────────────────────────
+function PdfViewer({ blobUrl }) {
+  const [numPages, setNumPages] = useState(null);
+  const [scale, setScale] = useState(1.2);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 120px)", width: "90vw", maxWidth: 900 }}>
+      {/* Toolbar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 14px", background: "rgba(255,255,255,0.08)", borderRadius: "6px 6px 0 0", flexShrink: 0 }}>
+        <span style={{ color: "#ccc", fontSize: 13, flex: 1 }}>
+          {numPages ? `${numPages} page${numPages > 1 ? "s" : ""}` : ""}
+        </span>
+        <button onClick={() => setScale(s => Math.max(0.5, +(s - 0.2).toFixed(1)))}
+          title="Zoom out"
+          style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", cursor: "pointer", width: 30, height: 30, borderRadius: 4, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>−</button>
+        <span style={{ color: "#fff", fontSize: 13, minWidth: 46, textAlign: "center" }}>{Math.round(scale * 100)}%</span>
+        <button onClick={() => setScale(s => Math.min(3, +(s + 0.2).toFixed(1)))}
+          title="Zoom in"
+          style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#fff", cursor: "pointer", width: 30, height: 30, borderRadius: 4, fontSize: 18, display: "flex", alignItems: "center", justifyContent: "center" }}>+</button>
+        <button onClick={() => setScale(1.2)} title="Reset zoom"
+          style={{ background: "rgba(255,255,255,0.1)", border: "none", color: "#ccc", cursor: "pointer", padding: "4px 10px", borderRadius: 4, fontSize: 12 }}>Reset</button>
+      </div>
+
+      {/* Scrollable pages */}
+      <div style={{ flex: 1, overflowY: "auto", background: "#525659", display: "flex", flexDirection: "column", alignItems: "center", padding: "16px 0", gap: 12 }}>
+        <Document
+          file={blobUrl}
+          onLoadSuccess={({ numPages }) => setNumPages(numPages)}
+          loading={<div style={{ color: "#ccc", padding: 40, fontSize: 14 }}>Loading PDF…</div>}
+          error={<div style={{ color: "#ccc", padding: 40, fontSize: 14 }}>Failed to load PDF.</div>}
+        >
+          {numPages && Array.from({ length: numPages }, (_, i) => (
+            <div key={i} style={{ boxShadow: "0 2px 12px rgba(0,0,0,0.5)", marginBottom: 4 }}>
+              <Page
+                pageNumber={i + 1}
+                scale={scale}
+                renderTextLayer
+                renderAnnotationLayer
+              />
+            </div>
+          ))}
+        </Document>
+      </div>
+    </div>
+  );
+}
+
+function TextPreview({ blobUrl }) {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    fetch(blobUrl).then(r => r.text()).then(setText).catch(() => {});
+  }, [blobUrl]);
+  return (
+    <pre style={{
+      background: "#fff", color: "#202124", padding: 24, borderRadius: 4,
+      maxWidth: "90vw", maxHeight: "calc(100vh - 120px)", overflowY: "auto",
+      fontSize: 13, fontFamily: "monospace", whiteSpace: "pre-wrap", wordBreak: "break-word",
+      margin: 0,
+    }}>
+      {text || " "}
+    </pre>
+  );
+}
+
+function AttachmentPreviewModal({ initialAtt, msgId, folderParam, allAtts, onClose, onDownload }) {
+  const [currentIdx, setCurrentIdx] = useState(() => allAtts.findIndex(a => a.index === initialAtt.index));
+  const [blobUrl, setBlobUrl] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const blobUrlRef = useRef(null);
+
+  const currentAtt = allAtts[currentIdx];
+
+  useEffect(() => {
+    if (blobUrlRef.current) { URL.revokeObjectURL(blobUrlRef.current); blobUrlRef.current = null; }
+    setBlobUrl(null);
+    setLoading(true);
+    setFetchError(false);
+    let cancelled = false;
+    const sep = folderParam ? "&" : "?";
+    fetch(`${API_URL}/emails/${msgId}/attachments/${currentAtt.index}${folderParam}${sep}preview=1`)
+      .then(r => { if (!r.ok) throw new Error(); return r.blob(); })
+      .then(blob => {
+        if (cancelled) return;
+        const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
+        setBlobUrl(url);
+        setLoading(false);
+      })
+      .catch(() => { if (!cancelled) { setFetchError(true); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [currentIdx]);
+
+  useEffect(() => {
+    return () => { if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current); };
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft" && currentIdx > 0) setCurrentIdx(i => i - 1);
+      if (e.key === "ArrowRight" && currentIdx < allAtts.length - 1) setCurrentIdx(i => i + 1);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [currentIdx, allAtts.length, onClose]);
+
+  const isImage = currentAtt.contentType.startsWith("image/");
+  const isPdf   = currentAtt.contentType === "application/pdf";
+  const isText  = currentAtt.contentType.startsWith("text/");
+  const isVideo = currentAtt.contentType.startsWith("video/");
+  const isAudio = currentAtt.contentType.startsWith("audio/");
+  const canPreview = isImage || isPdf || isText || isVideo || isAudio;
+
+  return (
+    <>
+      <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 3000 }} />
+      <div style={{ position: "fixed", inset: 0, zIndex: 3001, display: "flex", flexDirection: "column", pointerEvents: "none" }}>
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", background: "rgba(0,0,0,0.6)", flexShrink: 0, pointerEvents: "all" }}>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {currentAtt.filename}
+          </span>
+          {allAtts.length > 1 && (
+            <span style={{ fontSize: 13, color: "#bbb", flexShrink: 0 }}>{currentIdx + 1} / {allAtts.length}</span>
+          )}
+          <button onClick={() => onDownload(currentAtt.index, currentAtt.filename)} title="Download"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", padding: 6, borderRadius: "50%" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}>
+            <MdDownload size={20} />
+          </button>
+          <button onClick={onClose} title="Close"
+            style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", display: "flex", padding: 6, borderRadius: "50%" }}
+            onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.15)"}
+            onMouseLeave={e => e.currentTarget.style.background = "none"}>
+            <MdClose size={20} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", position: "relative", pointerEvents: "all" }}>
+          {/* Prev */}
+          {allAtts.length > 1 && currentIdx > 0 && (
+            <button onClick={() => setCurrentIdx(i => i - 1)}
+              style={{ position: "absolute", left: 16, zIndex: 1, background: "rgba(0,0,0,0.5)", border: "none", color: "#fff", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(0,0,0,0.8)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(0,0,0,0.5)"}>
+              <MdKeyboardArrowLeft size={26} />
+            </button>
+          )}
+
+          {loading && <div style={{ color: "#ccc", fontSize: 14 }}>Loading preview…</div>}
+
+          {!loading && (fetchError || !canPreview) && (
+            <div style={{ color: "#ccc", textAlign: "center" }}>
+              <MdInsertDriveFile size={56} style={{ marginBottom: 12, opacity: 0.6 }} />
+              <div style={{ fontSize: 14, marginBottom: 20 }}>No preview available</div>
+              <button onClick={() => onDownload(currentAtt.index, currentAtt.filename)}
+                style={{ padding: "8px 24px", background: "#1a73e8", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14 }}>
+                Download
+              </button>
+            </div>
+          )}
+
+          {!loading && !fetchError && blobUrl && canPreview && (
+            <>
+              {isImage && <img src={blobUrl} alt={currentAtt.filename} style={{ maxWidth: "90vw", maxHeight: "calc(100vh - 120px)", objectFit: "contain", borderRadius: 4 }} />}
+              {isPdf   && <PdfViewer blobUrl={blobUrl} />}
+              {isVideo && <video src={blobUrl} controls style={{ maxWidth: "90vw", maxHeight: "calc(100vh - 120px)", outline: "none", borderRadius: 4 }} />}
+              {isAudio && <audio src={blobUrl} controls style={{ width: 420, maxWidth: "90vw" }} />}
+              {isText  && <TextPreview blobUrl={blobUrl} />}
+            </>
+          )}
+
+          {/* Next */}
+          {allAtts.length > 1 && currentIdx < allAtts.length - 1 && (
+            <button onClick={() => setCurrentIdx(i => i + 1)}
+              style={{ position: "absolute", right: 16, zIndex: 1, background: "rgba(0,0,0,0.5)", border: "none", color: "#fff", borderRadius: "50%", width: 40, height: 40, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+              onMouseEnter={e => e.currentTarget.style.background = "rgba(0,0,0,0.8)"}
+              onMouseLeave={e => e.currentTarget.style.background = "rgba(0,0,0,0.5)"}>
+              <MdKeyboardArrowRight size={26} />
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 // ── Single message card inside a thread ──────────────────────────────────────
 function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardClick }) {
   const folderParam = msgMeta.folder === "sent" ? "?folder=sent" : msgMeta.folder === "trash" ? "?folder=trash" : msgMeta.folder === "spam" ? "?folder=spam" : "";
   const [expanded, setExpanded] = useState(initialExpanded);
   const [showDetails, setShowDetails] = useState(false);
   const [downloadingIdx, setDownloadingIdx] = useState(null);
+  const [previewAtt, setPreviewAtt] = useState(null);
+  const [hoveredThumb, setHoveredThumb] = useState(null);
   const [senderVerified, setSenderVerified] = useState(false);
 
   const { data: detail, isLoading } = useQuery({
@@ -2190,8 +2426,33 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
               const sizeLabel = att.size >= 1024*1024 ? `${(att.size/1024/1024).toFixed(1)} MB` : att.size >= 1024 ? `${(att.size/1024).toFixed(0)} KB` : `${att.size} B`;
               return (
                 <div key={att.index} style={{ border: "0.5px solid #e0e0e0", borderRadius: 8, width: 220, overflow: "hidden", background: "#f8f9fa" }}>
-                  <div style={{ height: 80, background: "#f1f3f4", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "0.5px solid #e0e0e0" }}>
-                    <AttIcon size={36} color={iconColor} />
+                  {/* Thumbnail — click to preview */}
+                  <div
+                    style={{ height: 80, background: "#f1f3f4", display: "flex", alignItems: "center", justifyContent: "center", borderBottom: "0.5px solid #e0e0e0", cursor: "pointer", position: "relative", overflow: "hidden" }}
+                    onClick={() => setPreviewAtt(att)}
+                    onMouseEnter={() => setHoveredThumb(att.index)}
+                    onMouseLeave={() => setHoveredThumb(null)}
+                    title="Preview"
+                  >
+                    {isImage ? (
+                      <img
+                        src={`${API_URL}/emails/${msgMeta.id}/attachments/${att.index}${folderParam}`}
+                        alt={att.filename}
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={e => { e.target.style.display = "none"; }}
+                      />
+                    ) : isPdf ? (
+                      <PdfThumbnail
+                        url={`${API_URL}/emails/${msgMeta.id}/attachments/${att.index}${folderParam ? folderParam + "&" : "?"}preview=1`}
+                      />
+                    ) : (
+                      <AttIcon size={36} color={iconColor} />
+                    )}
+                    {hoveredThumb === att.index && (
+                      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.3)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <MdVisibility size={26} color="#fff" />
+                      </div>
+                    )}
                   </div>
                   <div style={{ padding: "8px 10px", display: "flex", alignItems: "center", gap: 8 }}>
                     <AttIcon size={16} color={iconColor} style={{ flexShrink: 0 }} />
@@ -2210,6 +2471,18 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
             })}
           </div>
         </div>
+      )}
+
+      {/* Attachment preview modal */}
+      {previewAtt && (
+        <AttachmentPreviewModal
+          initialAtt={previewAtt}
+          msgId={msgMeta.id}
+          folderParam={folderParam}
+          allAtts={detail.attachments}
+          onClose={() => setPreviewAtt(null)}
+          onDownload={downloadAttachment}
+        />
       )}
     </div>
   );
