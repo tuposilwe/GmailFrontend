@@ -1294,7 +1294,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
           setSignatureId(data.id || null);
           if (!signatureAppended.current) {
             signatureAppended.current = true;
-            const block = `<br/><div data-signature="1" style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${data.html}</div>`;
+            const block = `<br/><div data-signature="1" style="padding-top:8px;margin-top:8px;font-size:13px">${data.html}</div>`;
             setTimeout(() => {
               if (editorRef.current?.appendToEnd) {
                 editorRef.current.appendToEnd(block);
@@ -1913,7 +1913,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                           {signatureHtml && (
                             <button
                               onClick={() => {
-                                const html = `<br/><div style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${signatureHtml}</div>`;
+                                const html = `<br/><div style="padding-top:8px;margin-top:8px;font-size:13px">${signatureHtml}</div>`;
                                 const mainEditor = editorRef.current;
                                 if (mainEditor) {
                                   // Use the exposed insertHTML via RichTextEditor's exec
@@ -2447,7 +2447,7 @@ function EmailDetail({
       : `${subjectPrefix} ${email.subject || ""}`;
     const sig = inlineSignatureHtml;
     const sigBlock = sig
-      ? `<br/><div data-signature="1" style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${sig}</div>`
+      ? `<br/><div data-signature="1" style="padding-top:8px;margin-top:8px;font-size:13px">${sig}</div>`
       : "";
     const bodyWithSig = sigBlock + initialBody;
     setInlineMode(mode);
@@ -3167,7 +3167,7 @@ function EmailDetail({
                         <div style={{ display: "flex", gap: 8 }}>
                           {inlineSignatureHtml && (
                             <button onClick={() => {
-                                const html = `<br/><div style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${inlineSignatureHtml}</div>`;
+                                const html = `<br/><div style="padding-top:8px;margin-top:8px;font-size:13px">${inlineSignatureHtml}</div>`;
                                 const el = document.querySelector('[data-placeholder="Write your message..."]');
                                 if (el) { el.focus(); const sel = window.getSelection(); const range = document.createRange(); range.selectNodeContents(el); range.collapse(false); sel.removeAllRanges(); sel.addRange(range); document.execCommand("insertHTML", false, html); setInlineBodyHtml(el.innerHTML); }
                                 setShowInlineSignaturePopover(false);
