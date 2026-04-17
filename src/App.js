@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import GmailUI from "./Gmail";
 import LoginPage from "./LoginPage";
 
+const API_URL = process.env.REACT_APP_API_URL || "";
+
 function App() {
   const [authState, setAuthState] = useState("loading"); // "loading" | "authenticated" | "unauthenticated"
   const [userEmail, setUserEmail] = useState(null);
 
   // Check existing session on mount
   useEffect(() => {
-    fetch("/auth/me")
+    fetch(`${API_URL}/auth/me`)
       .then(r => {
         if (r.ok) return r.json();
         throw new Error("unauthenticated");
@@ -28,7 +30,7 @@ function App() {
   };
 
   const handleLogout = async () => {
-    await fetch("/auth/logout", { method: "POST" });
+    await fetch(`${API_URL}/auth/logout`, { method: "POST" });
     setUserEmail(null);
     setAuthState("unauthenticated");
   };

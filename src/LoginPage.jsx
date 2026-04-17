@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+const API_URL = process.env.REACT_APP_API_URL || "";
+
 const css = `
   @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -111,7 +113,7 @@ export default function LoginPage({ onLogin }) {
     setError("");
     setLoading(true);
     try {
-      const res  = await fetch("/auth/login", {
+      const res  = await fetch(`${API_URL}/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),

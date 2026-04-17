@@ -64,6 +64,8 @@ import {
   MdDraw,
 } from "react-icons/md";
 
+const API_URL = process.env.REACT_APP_API_URL || "";
+
 const LABEL_STYLES = {};
 
 const NAV_ITEMS = [
@@ -1303,7 +1305,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
       setSignatureHtml(cached);
       appendSig(cached);
     }
-    fetch("/signature")
+    fetch(`${API_URL}/signature`)
       .then(r => r.json())
       .then(data => {
         if (data.html) {
@@ -1331,7 +1333,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
   // Pre-fetch top contacts as soon as the modal opens
   useEffect(() => {
     let cancelled = false;
-    fetch("/contacts")
+    fetch(`${API_URL}/contacts`)
       .then((r) => r.json())
       .then((data) => {
         if (!cancelled) setPreloadedContacts(data);
@@ -1367,7 +1369,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
     // If opened from an existing draft, delete the original first so we
     // don't accumulate duplicates (whether or not we save new content).
     if (initialDraft?.draftUid) {
-      fetch(`/emails/${initialDraft.draftUid}/trash?folder=drafts`, { method: "POST" }).catch(() => {});
+      fetch(`${API_URL}/emails/${initialDraft.draftUid}/trash?folder=drafts`, { method: "POST" }).catch(() => {});
     }
 
     if (!hasContent) return;
@@ -1381,7 +1383,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
     fd.append("text", liveText);
     attachments.forEach((f) => fd.append("attachments", f));
 
-    fetch("/emails/drafts", { method: "POST", body: fd })
+    fetch(`${API_URL}/emails/drafts`, { method: "POST", body: fd })
       .then(() => queryClient.invalidateQueries({ queryKey: ["emails", "Drafts"] }))
       .catch((err) => console.error("Save draft failed:", err));
   };
@@ -2004,7 +2006,7 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
 
   const { data: detail, isLoading } = useQuery({
     queryKey: ["email", msgMeta.id, msgMeta.folder],
-    queryFn: () => fetch(`/emails/${msgMeta.id}${folderParam}`).then(r => r.json()),
+    queryFn: () => fetch(`${API_URL}/emails/${msgMeta.id}${folderParam}`).then(r => r.json()),
     enabled: expanded,
     staleTime: Infinity,
     gcTime: 30 * 60 * 1000,
@@ -2022,7 +2024,7 @@ function ThreadMessageCard({ msgMeta, initialExpanded, onReplyClick, onForwardCl
   const downloadAttachment = async (index, filename) => {
     setDownloadingIdx(index);
     try {
-      const res = await fetch(`/emails/${msgMeta.id}/attachments/${index}${folderParam}`);
+      const res = await fetch(`${API_URL}/emails/${msgMeta.id}/attachments/${index}${folderParam}`);
       if (!res.ok) throw new Error("Failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -2306,7 +2308,7 @@ function EmailDetail({
 
   // Sync default signature from backend
   useEffect(() => {
-    fetch("/signature")
+    fetch(`${API_URL}/signature`)
       .then(r => r.json())
       .then(data => {
         if (data.html) {
@@ -2342,7 +2344,7 @@ function EmailDetail({
   }, [onPrev, onNext, inlineMode]);
 
   const act = (endpoint, method = "POST") => {
-    fetch(`/emails/${email.id}/${endpoint}${folderParam}`, { method }).catch(e => console.error(e));
+    fetch(`${API_URL}/emails/${email.id}/${endpoint}${folderParam}`, { method }).catch(e => console.error(e));
   };
 
   const handleArchive = () => {
@@ -2352,7 +2354,7 @@ function EmailDetail({
       label: "Undo",
       onClick: () => {
         onRestoreEmail?.(savedEmail);
-        fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+        fetch(`${API_URL}/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
         onToast?.("Action undone.");
       },
     });
@@ -2365,7 +2367,7 @@ function EmailDetail({
       label: "Undo",
       onClick: () => {
         onRestoreEmail?.(savedEmail);
-        fetch(`/emails/${savedEmail.id}/not-spam`, { method: "POST" }).catch(() => {});
+        fetch(`${API_URL}/emails/${savedEmail.id}/not-spam`, { method: "POST" }).catch(() => {});
         onToast?.("Action undone.");
       },
     });
@@ -2378,7 +2380,7 @@ function EmailDetail({
       label: "Undo",
       onClick: () => {
         onRestoreEmail?.(savedEmail);
-        fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+        fetch(`${API_URL}/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
         onToast?.("Action undone.");
       },
     });
@@ -2391,7 +2393,7 @@ function EmailDetail({
       label: "Undo",
       onClick: () => {
         onUpdateEmail?.({ unread: false });
-        fetch(`/emails/${emailId}/mark-read${folderParam}`, { method: "POST" }).catch(() => {});
+        fetch(`${API_URL}/emails/${emailId}/mark-read${folderParam}`, { method: "POST" }).catch(() => {});
         onToast?.("Action undone.");
       },
     });
@@ -2404,7 +2406,7 @@ function EmailDetail({
       label: "Undo",
       onClick: () => {
         onUpdateEmail?.({ unread: true });
-        fetch(`/emails/${emailId}/mark-unread${folderParam}`, { method: "POST" }).catch(() => {});
+        fetch(`${API_URL}/emails/${emailId}/mark-unread${folderParam}`, { method: "POST" }).catch(() => {});
         onToast?.("Action undone.");
       },
     });
@@ -2420,7 +2422,7 @@ function EmailDetail({
   const baseSubject = (email.subject || "").replace(/^((Re|Fwd?|Fw|AW|WG):\s*)*/gi, "").trim();
   const { data: threadMsgs = [] } = useQuery({
     queryKey: ["thread", baseSubject],
-    queryFn: () => fetch(`/emails/thread?subject=${encodeURIComponent(baseSubject)}`).then(r => r.json()),
+    queryFn: () => fetch(`${API_URL}/emails/thread?subject=${encodeURIComponent(baseSubject)}`).then(r => r.json()),
     staleTime: 30 * 1000,
     enabled: !!baseSubject,
   });
@@ -2436,7 +2438,7 @@ function EmailDetail({
       // Fetch in background and clear loading once done
       queryClient.fetchQuery({
         queryKey: ["email", email.id, folder],
-        queryFn: () => fetch(`/emails/${email.id}${folderParam}`).then(r => r.json()),
+        queryFn: () => fetch(`${API_URL}/emails/${email.id}${folderParam}`).then(r => r.json()),
         staleTime: Infinity,
       }).finally(() => setDetailLoading(false));
     } else {
@@ -2471,7 +2473,7 @@ function EmailDetail({
         : []
     );
     if (inlineContacts.length === 0) {
-      fetch("/contacts").then(r => r.json()).then(setInlineContacts).catch(() => {});
+      fetch(`${API_URL}/contacts`).then(r => r.json()).then(setInlineContacts).catch(() => {});
     }
   };
 
@@ -2486,7 +2488,7 @@ function EmailDetail({
     const lastFolderParam = lastMsg.folder === "sent" ? "?folder=sent" : lastMsg.folder === "trash" ? "?folder=trash" : lastMsg.folder === "spam" ? "?folder=spam" : "";
     let detail = queryClient.getQueryData(["email", lastMsg.id, lastMsg.folder]);
     if (!detail) {
-      detail = await fetch(`/emails/${lastMsg.id}${lastFolderParam}`).then(r => r.json());
+      detail = await fetch(`${API_URL}/emails/${lastMsg.id}${lastFolderParam}`).then(r => r.json());
     }
     const sName = detail?.senderName || lastMsg.senderName || "";
     const sEmail = detail?.senderEmail || lastMsg.senderEmail || "";
@@ -2515,7 +2517,7 @@ function EmailDetail({
   const openMoveMenu = async () => {
     setShowMoveMenu(true);
     if (mailboxes.length === 0) {
-      const res = await fetch("/mailboxes");
+      const res = await fetch(`${API_URL}/mailboxes`);
       const data = await res.json();
       setMailboxes(
         data.filter(
@@ -2529,7 +2531,7 @@ function EmailDetail({
 
   const handleMove = (mailboxPath) => {
     setShowMoveMenu(false);
-    fetch(`/emails/${email.id}/move`, {
+    fetch(`${API_URL}/emails/${email.id}/move`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mailbox: mailboxPath }),
@@ -3251,7 +3253,7 @@ async function fetchEmailList(nav, page) {
   else if (nav === "Snoozed") url = `/emails/snoozed`;
   else url = `/emails?page=${page}`;
 
-  const res  = await fetch(url);
+  const res  = await fetch(`${API_URL}${url}`);
   const data = await res.json();
   if (Array.isArray(data)) return { emails: data, total: data.length };
   return { emails: data.emails || [], total: data.total || 0 };
@@ -3483,7 +3485,7 @@ function SettingsModal({ onClose }) {
 
   // Load signatures from backend
   useEffect(() => {
-    fetch("/signatures")
+    fetch(`${API_URL}/signatures`)
       .then(r => r.json())
       .then(rows => {
         setSignatures(rows);
@@ -3520,7 +3522,7 @@ function SettingsModal({ onClose }) {
     setSaving(true);
     setSaveMsg("");
     try {
-      const res = await fetch("/signature", {
+      const res = await fetch(`${API_URL}/signature`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: editingId || undefined, name: editName, html, is_default: isDefault }),
@@ -3531,7 +3533,7 @@ function SettingsModal({ onClose }) {
         if (isDefault) localStorage.setItem("compose_signature_html", html);
         setSaveMsg("Saved!");
         // Reload list
-        const rows = await fetch("/signatures").then(r => r.json());
+        const rows = await fetch(`${API_URL}/signatures`).then(r => r.json());
         setSignatures(rows);
         if (!editingId) setEditingId(data.id);
       }
@@ -3544,8 +3546,8 @@ function SettingsModal({ onClose }) {
   };
 
   const handleDelete = async (id) => {
-    await fetch(`/signature/${id}`, { method: "DELETE" });
-    const rows = await fetch("/signatures").then(r => r.json());
+    await fetch(`${API_URL}/signature/${id}`, { method: "DELETE" });
+    const rows = await fetch(`${API_URL}/signatures`).then(r => r.json());
     setSignatures(rows);
     if (editingId === id) startNew();
   };
@@ -3793,9 +3795,9 @@ export default function GmailUI({ userEmail, onLogout }) {
     fd.append("text", draft.body.replace(/<[^>]*>/g, ""));
     draft.attachments.forEach((f) => fd.append("attachments", f));
     try {
-      await fetch("/send-email", { method: "POST", body: fd });
+      await fetch(`${API_URL}/send-email`, { method: "POST", body: fd });
       if (draft.recipients.length > 0) {
-        fetch("/contacts", {
+        fetch(`${API_URL}/contacts`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(draft.recipients),
@@ -3803,7 +3805,7 @@ export default function GmailUI({ userEmail, onLogout }) {
       }
       // If this was sent from a draft, remove the original draft from IMAP
       if (draft.draftUid) {
-        fetch(`/emails/${draft.draftUid}/trash?folder=drafts`, { method: "POST" })
+        fetch(`${API_URL}/emails/${draft.draftUid}/trash?folder=drafts`, { method: "POST" })
           .then(() => queryClient.invalidateQueries({ queryKey: ["emails", "Drafts"] }))
           .catch(() => {});
       }
@@ -3892,7 +3894,7 @@ export default function GmailUI({ userEmail, onLogout }) {
   useEffect(() => {
     if (!search.trim()) { setContactSuggestions([]); return; }
     const t = setTimeout(() => {
-      fetch(`/contacts?q=${encodeURIComponent(search.trim())}`)
+      fetch(`${API_URL}/contacts?q=${encodeURIComponent(search.trim())}`)
         .then(r => r.json())
         .then(d => setContactSuggestions(Array.isArray(d) ? d.slice(0, 5) : []))
         .catch(() => {});
@@ -3913,7 +3915,7 @@ export default function GmailUI({ userEmail, onLogout }) {
   }, []);
 
   const loadRecentSearches = () => {
-    fetch("/recent-searches")
+    fetch(`${API_URL}/recent-searches`)
       .then(r => r.json())
       .then(d => setRecentSearches(Array.isArray(d) ? d : []))
       .catch(() => {});
@@ -3923,7 +3925,7 @@ export default function GmailUI({ userEmail, onLogout }) {
     if (!q.trim()) return;
     // Optimistic update
     setRecentSearches(prev => [q.trim(), ...prev.filter(r => r !== q.trim())].slice(0, 8));
-    fetch("/recent-searches", {
+    fetch(`${API_URL}/recent-searches`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query: q.trim() }),
@@ -3933,7 +3935,7 @@ export default function GmailUI({ userEmail, onLogout }) {
   const removeRecentSearch = (q, e) => {
     e.stopPropagation();
     setRecentSearches(prev => prev.filter(r => r !== q));
-    fetch(`/recent-searches/${encodeURIComponent(q)}`, { method: "DELETE" }).catch(() => {});
+    fetch(`${API_URL}/recent-searches/${encodeURIComponent(q)}`, { method: "DELETE" }).catch(() => {});
   };
 
   const commitSearch = (q) => {
@@ -3985,7 +3987,7 @@ export default function GmailUI({ userEmail, onLogout }) {
   const { data: searchData, isLoading: searchLoading } = useQuery({
     queryKey: ["search", debouncedSearch, searchPage],
     queryFn: () =>
-      fetch(`/emails/search?q=${encodeURIComponent(debouncedSearch)}&page=${searchPage}`)
+      fetch(`${API_URL}/emails/search?q=${encodeURIComponent(debouncedSearch)}&page=${searchPage}`)
         .then((r) => r.json())
         .then((d) => (Array.isArray(d) ? { emails: d, total: d.length } : { emails: d.emails ?? [], total: d.total ?? 0 })),
     enabled: isSearching,
@@ -4063,7 +4065,7 @@ export default function GmailUI({ userEmail, onLogout }) {
 
   const { data: storageData } = useQuery({
     queryKey: ["storage"],
-    queryFn: () => fetch("/storage").then((r) => r.json()),
+    queryFn: () => fetch(`${API_URL}/storage`).then((r) => r.json()),
     staleTime: 15 * 60_000,
   });
   const storageInfo = storageData?.percent != null ? storageData : null;
@@ -4113,7 +4115,7 @@ export default function GmailUI({ userEmail, onLogout }) {
     const param  = folder === "sent" ? "?folder=sent" : folder === "drafts" ? "?folder=drafts" : folder === "trash" ? "?folder=trash" : folder === "spam" ? "?folder=spam" : "";
     queryClient.prefetchQuery({
       queryKey: ["email", id, folder],
-      queryFn: () => fetch(`/emails/${id}${param}`).then((r) => r.json()),
+      queryFn: () => fetch(`${API_URL}/emails/${id}${param}`).then((r) => r.json()),
       staleTime: Infinity,
     });
   };
@@ -4132,7 +4134,7 @@ export default function GmailUI({ userEmail, onLogout }) {
       list.map((em) => {
         if (em.id !== id) return em;
         const nowStarred = !em.starred;
-        fetch(`/emails/${id}/${nowStarred ? "star" : "unstar"}`, { method: "POST" }).catch(() => {});
+        fetch(`${API_URL}/emails/${id}/${nowStarred ? "star" : "unstar"}`, { method: "POST" }).catch(() => {});
         // In the Starred folder, unstarring should remove the row
         if (activeNav === "Starred" && !nowStarred) return null;
         return { ...em, starred: nowStarred };
@@ -4148,7 +4150,7 @@ export default function GmailUI({ userEmail, onLogout }) {
 
     // Drafts open in ComposeModal pre-filled, not in the detail view
     if (activeNav === "Drafts") {
-      fetch(`/emails/${id}?folder=drafts`)
+      fetch(`${API_URL}/emails/${id}?folder=drafts`)
         .then((r) => r.json())
         .then((detail) => {
           const toAddresses = detail.toEmail
@@ -4177,7 +4179,7 @@ export default function GmailUI({ userEmail, onLogout }) {
         if (em.id !== id) return em;
         if (em.unread) {
           const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : activeNav === "Trash" ? "?folder=trash" : activeNav === "Spam" ? "?folder=spam" : "";
-          fetch(`/emails/${id}/mark-read${fp}`, { method: "POST" }).catch(() => {});
+          fetch(`${API_URL}/emails/${id}/mark-read${fp}`, { method: "POST" }).catch(() => {});
         }
         return { ...em, unread: false };
       }),
@@ -4225,12 +4227,12 @@ export default function GmailUI({ userEmail, onLogout }) {
       label: "Undo",
       onClick: () => {
         patchList((list) => list.map((em) => (ids.includes(em.id) ? { ...em, unread: true } : em)));
-        ids.forEach((id) => fetch(`/emails/${id}/mark-unread${folderQS}`, { method: "POST" }).catch(() => {}));
+        ids.forEach((id) => fetch(`${API_URL}/emails/${id}/mark-unread${folderQS}`, { method: "POST" }).catch(() => {}));
         showToast("Action undone.");
       },
     });
     ids.forEach((id) =>
-      fetch(`/emails/${id}/mark-read${folderQS}`, { method: "POST" }).catch(() => {}),
+      fetch(`${API_URL}/emails/${id}/mark-read${folderQS}`, { method: "POST" }).catch(() => {}),
     );
   };
 
@@ -4245,12 +4247,12 @@ export default function GmailUI({ userEmail, onLogout }) {
       label: "Undo",
       onClick: () => {
         patchList((list) => list.map((em) => (ids.includes(em.id) ? { ...em, unread: false } : em)));
-        ids.forEach((id) => fetch(`/emails/${id}/mark-read${folderQS}`, { method: "POST" }).catch(() => {}));
+        ids.forEach((id) => fetch(`${API_URL}/emails/${id}/mark-read${folderQS}`, { method: "POST" }).catch(() => {}));
         showToast("Action undone.");
       },
     });
     ids.forEach((id) =>
-      fetch(`/emails/${id}/mark-unread${folderQS}`, { method: "POST" }).catch(() => {}),
+      fetch(`${API_URL}/emails/${id}/mark-unread${folderQS}`, { method: "POST" }).catch(() => {}),
     );
   };
 
@@ -4264,12 +4266,12 @@ export default function GmailUI({ userEmail, onLogout }) {
       label: "Undo",
       onClick: () => {
         patchList((list) => [...snapshot, ...list]);
-        ids.forEach((id) => fetch(`/emails/${id}/restore`, { method: "POST" }).catch(() => {}));
+        ids.forEach((id) => fetch(`${API_URL}/emails/${id}/restore`, { method: "POST" }).catch(() => {}));
         showToast("Action undone.");
       },
     });
     ids.forEach((id) =>
-      fetch(`/emails/${id}/archive${folderQS}`, { method: "POST" }).catch(() => {}),
+      fetch(`${API_URL}/emails/${id}/archive${folderQS}`, { method: "POST" }).catch(() => {}),
     );
   };
 
@@ -4283,12 +4285,12 @@ export default function GmailUI({ userEmail, onLogout }) {
       label: "Undo",
       onClick: () => {
         patchList((list) => [...snapshot, ...list]);
-        ids.forEach((id) => fetch(`/emails/${id}/restore`, { method: "POST" }).catch(() => {}));
+        ids.forEach((id) => fetch(`${API_URL}/emails/${id}/restore`, { method: "POST" }).catch(() => {}));
         showToast("Action undone.");
       },
     });
     ids.forEach((id) =>
-      fetch(`/emails/${id}/trash${folderQS}`, { method: "POST" }).catch(() => {}),
+      fetch(`${API_URL}/emails/${id}/trash${folderQS}`, { method: "POST" }).catch(() => {}),
     );
   };
 
@@ -4299,7 +4301,7 @@ export default function GmailUI({ userEmail, onLogout }) {
     setCheckedIds(new Set());
     showToast(`${count} conversation${count !== 1 ? "s" : ""} permanently deleted.`);
     ids.forEach((id) =>
-      fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}),
+      fetch(`${API_URL}/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}),
     );
   };
 
@@ -4310,7 +4312,7 @@ export default function GmailUI({ userEmail, onLogout }) {
     setCheckedIds(new Set());
     showToast(`${count} conversation${count !== 1 ? "s" : ""} restored to Inbox.`);
     ids.forEach((id) =>
-      fetch(`/emails/${id}/restore`, { method: "POST" }).catch(() => {}),
+      fetch(`${API_URL}/emails/${id}/restore`, { method: "POST" }).catch(() => {}),
     );
   };
 
@@ -4364,7 +4366,7 @@ export default function GmailUI({ userEmail, onLogout }) {
   const confirmSnooze = async (snoozeUntil) => {
     if (!snoozeTarget) return;
     const folder = snoozeTarget.folder || (activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : "inbox");
-    await fetch(`/emails/${snoozeTarget.id}/snooze`, {
+    await fetch(`${API_URL}/emails/${snoozeTarget.id}/snooze`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ snooze_until: snoozeUntil.toISOString(), folder }),
@@ -4377,7 +4379,7 @@ export default function GmailUI({ userEmail, onLogout }) {
     if (!unsubscribeTarget) return;
     setUnsubscribing(true);
     try {
-      await fetch(`/emails/${unsubscribeTarget.id}/unsubscribe`, {
+      await fetch(`${API_URL}/emails/${unsubscribeTarget.id}/unsubscribe`, {
         method: "POST",
       });
       patchList((list) => list.filter((em) => em.id !== unsubscribeTarget.id));
@@ -5440,7 +5442,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                               patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
                               setCheckedIds(new Set());
                               showToast(`${count} conversation${count !== 1 ? "s" : ""} moved to Inbox.`);
-                              ids.forEach((id) => fetch(`/emails/${id}/not-spam`, { method: "POST" }).catch(() => {}));
+                              ids.forEach((id) => fetch(`${API_URL}/emails/${id}/not-spam`, { method: "POST" }).catch(() => {}));
                             },
                           },
                           {
@@ -5452,7 +5454,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                               patchList((list) => list.filter((em) => !checkedIds.has(em.id)));
                               setCheckedIds(new Set());
                               showToast(`${count} conversation${count !== 1 ? "s" : ""} permanently deleted.`);
-                              ids.forEach((id) => fetch(`/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}));
+                              ids.forEach((id) => fetch(`${API_URL}/emails/${id}/delete-forever`, { method: "POST" }).catch(() => {}));
                             },
                           },
                           {
@@ -5781,7 +5783,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                             patchList(() => []);
                             setCheckedIds(new Set());
                             showToast(`${count} conversation${count !== 1 ? "s" : ""} permanently deleted.`);
-                            fetch("/emails/trash", { method: "DELETE" }).catch(() => {});
+                            fetch(`${API_URL}/emails/trash`, { method: "DELETE" }).catch(() => {});
                           }}
                         >
                           Empty Trash now
@@ -5799,7 +5801,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                             onClick={() => {
                               patchList(() => []);
                               setCheckedIds(new Set());
-                              fetch("/emails/spam", { method: "DELETE" }).catch(() => {});
+                              fetch(`${API_URL}/emails/spam`, { method: "DELETE" }).catch(() => {});
                             }}
                           >
                             Delete all spam messages now
@@ -6128,7 +6130,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                                       e.stopPropagation();
                                       patchList((list) => list.filter((em) => em.id !== email.id));
                                       showToast("Conversation permanently deleted.");
-                                      await fetch(`/emails/${email.id}/delete-forever`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${email.id}/delete-forever`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -6138,7 +6140,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                                       e.stopPropagation();
                                       patchList((list) => list.filter((em) => em.id !== email.id));
                                       showToast("Conversation restored to Inbox.");
-                                      await fetch(`/emails/${email.id}/restore`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${email.id}/restore`, { method: "POST" });
                                     },
                                   },
                                 ] : activeNav === "Spam" ? [
@@ -6150,7 +6152,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                                       const savedEmail = email;
                                       patchList((list) => list.filter((em) => em.id !== email.id));
                                       showToast("Conversation moved to Inbox.");
-                                      await fetch(`/emails/${email.id}/not-spam`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${email.id}/not-spam`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -6160,7 +6162,7 @@ export default function GmailUI({ userEmail, onLogout }) {
                                       e.stopPropagation();
                                       patchList((list) => list.filter((em) => em.id !== email.id));
                                       showToast("Conversation permanently deleted.");
-                                      await fetch(`/emails/${email.id}/delete-forever`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${email.id}/delete-forever`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -6174,11 +6176,11 @@ export default function GmailUI({ userEmail, onLogout }) {
                                         label: "Undo",
                                         onClick: () => {
                                           patchList((list) => list.map((em) => em.id === emailId ? { ...em, unread: false } : em));
-                                          fetch(`/emails/${emailId}/mark-read?folder=spam`, { method: "POST" }).catch(() => {});
+                                          fetch(`${API_URL}/emails/${emailId}/mark-read?folder=spam`, { method: "POST" }).catch(() => {});
                                           showToast("Action undone.");
                                         },
                                       });
-                                      await fetch(`/emails/${emailId}/mark-unread?folder=spam`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${emailId}/mark-unread?folder=spam`, { method: "POST" });
                                     },
                                   },
                                 ] : [
@@ -6196,11 +6198,11 @@ export default function GmailUI({ userEmail, onLogout }) {
                                         label: "Undo",
                                         onClick: () => {
                                           patchList((list) => [savedEmail, ...list]);
-                                          fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+                                          fetch(`${API_URL}/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
                                           showToast("Action undone.");
                                         },
                                       });
-                                      await fetch(`/emails/${email.id}/archive${fp}`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${email.id}/archive${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -6214,12 +6216,12 @@ export default function GmailUI({ userEmail, onLogout }) {
                                         label: "Undo",
                                         onClick: () => {
                                           patchList((list) => [savedEmail, ...list]);
-                                          fetch(`/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
+                                          fetch(`${API_URL}/emails/${savedEmail.id}/restore`, { method: "POST" }).catch(() => {});
                                           showToast("Action undone.");
                                         },
                                       });
                                       const fp = activeNav === "Sent" ? "?folder=sent" : activeNav === "Drafts" ? "?folder=drafts" : "";
-                                      await fetch(`/emails/${savedEmail.id}/trash${fp}`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${savedEmail.id}/trash${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
@@ -6240,11 +6242,11 @@ export default function GmailUI({ userEmail, onLogout }) {
                                         label: "Undo",
                                         onClick: () => {
                                           patchList((list) => list.map((em) => em.id === emailId ? { ...em, unread: false } : em));
-                                          fetch(`/emails/${emailId}/mark-read${fp}`, { method: "POST" }).catch(() => {});
+                                          fetch(`${API_URL}/emails/${emailId}/mark-read${fp}`, { method: "POST" }).catch(() => {});
                                           showToast("Action undone.");
                                         },
                                       });
-                                      await fetch(`/emails/${emailId}/mark-unread${fp}`, { method: "POST" });
+                                      await fetch(`${API_URL}/emails/${emailId}/mark-unread${fp}`, { method: "POST" });
                                     },
                                   },
                                   {
