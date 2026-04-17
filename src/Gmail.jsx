@@ -1277,41 +1277,30 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
   const signatureImageInputRef = useRef(null);
   const [preloadedContacts, setPreloadedContacts] = useState([]);
   const [showSignaturePopover, setShowSignaturePopover] = useState(false);
-  const [signatureHtml, setSignatureHtml] = useState(
-    () => localStorage.getItem("compose_signature_html") || ""
-  );
+  const [signatureHtml, setSignatureHtml] = useState("");
+  const [signatureId, setSignatureId] = useState(null);
   const [editingSignature, setEditingSignature] = useState(false);
   const signatureAppended = useRef(false);
 
-  // Sync default signature from backend and auto-append into editor on mount
+  // Load default signature from backend and auto-append into editor on mount
   useEffect(() => {
     // If opening from a draft that already has a body, don't auto-append signature
     if (initialDraft?.body) return;
-    const cached = localStorage.getItem("compose_signature_html");
-
-    const appendSig = (html) => {
-      if (!html || signatureAppended.current) return;
-      signatureAppended.current = true;
-      const block = `<br/><div data-signature="1" style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${html}</div>`;
-      // Use setTimeout(0) so the editor has finished its first render before we append
-      setTimeout(() => {
-        if (editorRef.current?.appendToEnd) {
-          editorRef.current.appendToEnd(block);
-        }
-      }, 0);
-    };
-
-    if (cached) {
-      setSignatureHtml(cached);
-      appendSig(cached);
-    }
     fetch(`${API_URL}/signature`)
       .then(r => r.json())
       .then(data => {
         if (data.html) {
           setSignatureHtml(data.html);
-          localStorage.setItem("compose_signature_html", data.html);
-          if (!cached) appendSig(data.html);
+          setSignatureId(data.id || null);
+          if (!signatureAppended.current) {
+            signatureAppended.current = true;
+            const block = `<br/><div data-signature="1" style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${data.html}</div>`;
+            setTimeout(() => {
+              if (editorRef.current?.appendToEnd) {
+                editorRef.current.appendToEnd(block);
+              }
+            }, 0);
+          }
         }
       })
       .catch(() => {});
@@ -1358,8 +1347,6 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
     // was just appended or the user closed immediately after typing).
     const liveHtml = editorRef.current?.getHTML?.() || body;
     const liveText = liveHtml.replace(/<[^>]*>/g, "").trim();
-    localStorage.removeItem('compose_backup_body');
-
     const hasContent =
       recipients.length > 0 ||
       subject.trim() ||
@@ -1639,12 +1626,10 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                 ref={editorRef} 
                 onChange={(html) => {
                   setBody(html);
-                  // Also save to localStorage as backup
-                  if (html) localStorage.setItem('compose_backup_body', html);
-                }} 
-                fullscreen={fullscreen} 
-                showToolbar={showFormatting} 
-                initialHTML={body || localStorage.getItem('compose_backup_body') || ''}
+                }}
+                fullscreen={fullscreen}
+                showToolbar={showFormatting}
+                initialHTML={body || ''}
             />
             
             {/* Attachment chips */}
@@ -1857,8 +1842,10 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                               if (!file) return;
                               const reader = new FileReader();
                               reader.onload = ev => {
-                                signatureEditorRef.current?.focus();
-                                document.execCommand("insertHTML", false, `<img src="${ev.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`);
+                                const el = signatureEditorRef.current;
+                                if (!el) return;
+                                el.innerHTML += `<img src="${ev.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`;
+                                el.focus();
                               };
                               reader.readAsDataURL(file);
                               e.target.value = "";
@@ -1896,9 +1883,16 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
                             onMouseLeave={e => e.currentTarget.style.background = "#fff"}>Cancel</button>
                           <button onClick={() => {
                               const html = signatureEditorRef.current?.innerHTML || "";
-                              localStorage.setItem("compose_signature_html", html);
                               setSignatureHtml(html);
                               setEditingSignature(false);
+                              fetch(`${API_URL}/signature`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: signatureId || undefined, html, is_default: 1 }),
+                              })
+                                .then(r => r.json())
+                                .then(data => { if (data.id) setSignatureId(data.id); })
+                                .catch(() => {});
                             }}
                             style={{ padding: "6px 14px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
                             onMouseEnter={e => e.currentTarget.style.background = "#1765cc"}
@@ -2301,19 +2295,18 @@ function EmailDetail({
   const inlineSignatureEditorRef = useRef(null);
   const inlineSignatureImageInputRef = useRef(null);
   const [showInlineSignaturePopover, setShowInlineSignaturePopover] = useState(false);
-  const [inlineSignatureHtml, setInlineSignatureHtml] = useState(
-    () => localStorage.getItem("compose_signature_html") || ""
-  );
+  const [inlineSignatureHtml, setInlineSignatureHtml] = useState("");
+  const [inlineSignatureId, setInlineSignatureId] = useState(null);
   const [editingInlineSignature, setEditingInlineSignature] = useState(false);
 
-  // Sync default signature from backend
+  // Load default signature from backend
   useEffect(() => {
     fetch(`${API_URL}/signature`)
       .then(r => r.json())
       .then(data => {
         if (data.html) {
           setInlineSignatureHtml(data.html);
-          localStorage.setItem("compose_signature_html", data.html);
+          setInlineSignatureId(data.id || null);
         }
       })
       .catch(() => {});
@@ -2452,7 +2445,7 @@ function EmailDetail({
     const subject = email.subject?.startsWith(subjectPrefix)
       ? email.subject
       : `${subjectPrefix} ${email.subject || ""}`;
-    const sig = localStorage.getItem("compose_signature_html") || inlineSignatureHtml;
+    const sig = inlineSignatureHtml;
     const sigBlock = sig
       ? `<br/><div data-signature="1" style="border-top:1px solid #e0e0e0;padding-top:8px;margin-top:8px;font-size:13px">${sig}</div>`
       : "";
@@ -3122,7 +3115,12 @@ function EmailDetail({
                             onChange={e => {
                               const file = e.target.files?.[0]; if (!file) return;
                               const reader = new FileReader();
-                              reader.onload = ev => { inlineSignatureEditorRef.current?.focus(); document.execCommand("insertHTML", false, `<img src="${ev.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`); };
+                              reader.onload = ev => {
+                                const el = inlineSignatureEditorRef.current;
+                                if (!el) return;
+                                el.innerHTML += `<img src="${ev.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`;
+                                el.focus();
+                              };
                               reader.readAsDataURL(file); e.target.value = "";
                             }} />
                           <button onMouseDown={e => { e.preventDefault(); inlineSignatureImageInputRef.current?.click(); }}
@@ -3142,9 +3140,16 @@ function EmailDetail({
                             onMouseLeave={e => e.currentTarget.style.background = "#fff"}>Cancel</button>
                           <button onClick={() => {
                               const html = inlineSignatureEditorRef.current?.innerHTML || "";
-                              localStorage.setItem("compose_signature_html", html);
                               setInlineSignatureHtml(html);
                               setEditingInlineSignature(false);
+                              fetch(`${API_URL}/signature`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ id: inlineSignatureId || undefined, html, is_default: 1 }),
+                              })
+                                .then(r => r.json())
+                                .then(data => { if (data.id) setInlineSignatureId(data.id); })
+                                .catch(() => {});
                             }}
                             style={{ padding: "6px 14px", borderRadius: 4, border: "none", background: "#1a73e8", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "inherit", fontWeight: 500 }}
                             onMouseEnter={e => e.currentTarget.style.background = "#1765cc"}
@@ -3529,8 +3534,6 @@ function SettingsModal({ onClose }) {
       });
       const data = await res.json();
       if (data.ok) {
-        // Also sync to localStorage so compose window picks it up if default
-        if (isDefault) localStorage.setItem("compose_signature_html", html);
         setSaveMsg("Saved!");
         // Reload list
         const rows = await fetch(`${API_URL}/signatures`).then(r => r.json());
@@ -3688,8 +3691,10 @@ function SettingsModal({ onClose }) {
                         if (!file) return;
                         const reader = new FileReader();
                         reader.onload = e2 => {
-                          sigEditorRef.current?.focus();
-                          document.execCommand("insertHTML", false, `<img src="${e2.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`);
+                          const el = sigEditorRef.current;
+                          if (!el) return;
+                          el.innerHTML += `<img src="${e2.target.result}" alt="signature" style="max-width:100%;height:auto;vertical-align:middle;" />`;
+                          el.focus();
                         };
                         reader.readAsDataURL(file);
                         ev.target.value = "";
