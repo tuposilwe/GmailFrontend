@@ -70,7 +70,7 @@ import {
 
 pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.js";
 
-const API_URL = process.env.REACT_APP_API_URL || "";
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 const LABEL_STYLES = {};
 
@@ -4345,10 +4345,9 @@ export default function GmailUI({ userEmail, onLogout }) {
 
   // WebSocket connection for real-time IMAP IDLE notifications
   useEffect(() => {
-    // REACT_APP_WS_URL connects directly to the backend in dev mode, bypassing
-    // CRA's proxy which does not forward WebSocket upgrades. In production
-    // leave it unset and the same host/port as the page is used instead.
-    const wsBase = process.env.REACT_APP_WS_URL ||
+    // VITE_WS_URL is only needed in production (set to wss://your-backend.com).
+    // In dev, Vite's proxy forwards WebSocket upgrades so we use the page host.
+    const wsBase = import.meta.env.VITE_WS_URL ||
       (window.location.protocol === "https:" ? "wss:" : "ws:") + "//" + window.location.host;
     const wsUrl = wsBase.replace(/\/$/, "") + "/mail-events";
     let ws;
