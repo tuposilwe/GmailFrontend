@@ -2000,6 +2000,7 @@ function ComposeModal({ onClose, onPendingSend, initialDraft, minimized, onMinim
 function PdfThumbnail({ url }) {
   const [pageReady, setPageReady] = useState(false);
   const [loadError, setLoadError] = useState(false);
+  const fileObj = useMemo(() => ({ url, withCredentials: true }), [url]);
 
   return (
     <div style={{ width: "100%", height: "100%", overflow: "hidden", position: "relative", pointerEvents: "none" }}>
@@ -2009,7 +2010,7 @@ function PdfThumbnail({ url }) {
           opacity: pageReady ? 1 : 0, transition: "opacity 0.25s",
         }}>
           <Document
-            file={{ url, withCredentials: true }}
+            file={fileObj}
             onLoadError={() => setLoadError(true)}
             loading={null}
             error={null}
