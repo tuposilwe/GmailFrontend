@@ -4325,6 +4325,110 @@ export default function GmailUI({ userEmail, onLogout }) {
   });
   const inboxUnreadCount = (inboxData.data?.emails ?? []).filter((e) => e.unread).length;
 
+  // ── Browser notifications + WebSocket live updates ───────────────────────────
+
+  // Request notification permission once on mount
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  // Refs so the WebSocket closure always sees the latest callbacks without
+  // needing to re-create the socket on every render.
+  const showToastRef = useRef(showToast);
+  const setActiveNavRef = useRef(setActiveNav);
+  const setSelectedIdRef = useRef(setSelectedId);
+  useEffect(() => { showToastRef.current = showToast; }, [showToast]);
+  useEffect(() => { setActiveNavRef.current = setActiveNav; }, [setActiveNav]);
+  useEffect(() => { setSelectedIdRef.current = setSelectedId; }, [setSelectedId]);
+
+  // WebSocket connection for real-time IMAP IDLE notifications
+  useEffect(() => {
+    // REACT_APP_WS_URL connects directly to the backend in dev mode, bypassing
+    // CRA's proxy which does not forward WebSocket upgrades. In production
+    // leave it unset and the same host/port as the page is used instead.
+    const wsBase = process.env.REACT_APP_WS_URL ||
+      (window.location.protocol === "https:" ? "wss:" : "ws:") + "//" + window.location.host;
+    const wsUrl = wsBase.replace(/\/$/, "") + "/mail-events";
+    let ws;
+    let reconnectTimer;
+    let destroyed = false;
+
+    function handleNewEmails(newEmails) {
+      if (!newEmails.length) return;
+
+      // Force-refetch inbox so new emails appear instantly in the list
+      queryClient.refetchQueries({ queryKey: ["emails", "Inbox", 1] });
+
+      const first = newEmails[0];
+      const label = newEmails.length === 1
+        ? `New email from ${first.senderName || first.senderEmail}`
+        : `${newEmails.length} new messages`;
+      const body = newEmails.length === 1
+        ? (first.subject || "(no subject)")
+        : newEmails.map((e) => `${e.senderName || e.senderEmail}: ${e.subject || "(no subject)"}`).join("\n");
+
+      // Browser desktop notification (works when app is in background)
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const n = new Notification(label, {
+          body,
+          icon: "/YanaCorp-Logo-Blue.png",
+          tag: newEmails.length === 1 ? `email-${first.id}` : "email-batch",
+          requireInteraction: true,
+        });
+        n.onclick = () => {
+          window.focus();
+          setActiveNavRef.current("Inbox");
+          if (newEmails.length === 1) setSelectedIdRef.current(first.id);
+          n.close();
+        };
+      }
+
+      // In-app toast — always shown regardless of notification permission
+      showToastRef.current(label, [
+        {
+          label: "View",
+          onClick: () => {
+            setActiveNavRef.current("Inbox");
+            if (newEmails.length === 1) setSelectedIdRef.current(first.id);
+          },
+        },
+      ]);
+    }
+
+    function connect() {
+      if (destroyed) return;
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => console.log("[mail-events] WebSocket connected");
+      ws.onmessage = (evt) => {
+        console.log("[mail-events] message received:", evt.data);
+        try {
+          const msg = JSON.parse(evt.data);
+          if (msg.type === "new_emails" && Array.isArray(msg.emails) && msg.emails.length > 0) {
+            handleNewEmails(msg.emails);
+          }
+        } catch { /* ignore malformed frames */ }
+      };
+
+      ws.onclose = (evt) => {
+        console.log(`[mail-events] WebSocket closed — code: ${evt.code}, reason: "${evt.reason}"`);
+        if (!destroyed) reconnectTimer = setTimeout(connect, 5_000);
+      };
+
+      ws.onerror = (e) => { if (!destroyed) console.error("[mail-events] WebSocket error", e); ws.close(); };
+    }
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const draftsData = useQuery({
     queryKey: emailListKey("Drafts", 1),
     queryFn: () => fetchEmailList("Drafts", 1),
@@ -6661,26 +6765,27 @@ export default function GmailUI({ userEmail, onLogout }) {
       <div
         style={{
           position: "fixed",
-          bottom: 24,
-          left: 24,
+          bottom: 32,
+          left: 32,
           background: "#323232",
           color: "#fff",
-          fontSize: 14,
-          padding: "10px 8px 10px 16px",
-          borderRadius: 4,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+          fontSize: 16,
+          padding: "14px 12px 14px 20px",
+          borderRadius: 6,
+          boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: 12,
+          minWidth: 320,
           pointerEvents: toast ? "auto" : "none",
           opacity: toast ? 1 : 0,
-          transform: toast ? "translateY(0)" : "translateY(12px)",
-          transition: "opacity 0.18s ease, transform 0.18s ease",
+          transform: toast ? "translateY(0)" : "translateY(16px)",
+          transition: "opacity 0.2s ease, transform 0.2s ease",
           zIndex: 9999,
           whiteSpace: "nowrap",
         }}
       >
-        <span style={{ marginRight: 8 }}>{toast?.message}</span>
+        <span style={{ marginRight: 8, fontSize: 16 }}>{toast?.message}</span>
         {(toast?.actions || []).map((a) => (
           <button
             key={a.label}
@@ -6689,10 +6794,10 @@ export default function GmailUI({ userEmail, onLogout }) {
               background: "none",
               border: "none",
               color: "#8ab4f8",
-              fontSize: 14,
-              fontWeight: 500,
+              fontSize: 15,
+              fontWeight: 600,
               cursor: "pointer",
-              padding: "0 8px",
+              padding: "0 10px",
               whiteSpace: "nowrap",
             }}
           >
