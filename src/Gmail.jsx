@@ -301,7 +301,7 @@ function SenderAvatar({
 }) {
   const domain = senderEmail ? senderEmail.split("@")[1] : "";
   const logoUrl = domain
-    ? `/logo?domain=${domain}&email=${encodeURIComponent(senderEmail || "")}`
+    ? `${API_URL}/logo?domain=${domain}&email=${encodeURIComponent(senderEmail || "")}`
     : "";
 
   const [loaded, setLoaded] = useState(false);
