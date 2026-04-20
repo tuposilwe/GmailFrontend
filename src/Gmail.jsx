@@ -4081,6 +4081,27 @@ export default function GmailUI({ userEmail, onLogout }) {
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [readingPane, setReadingPaneState] = useState(false);
+  const [listPaneWidth, setListPaneWidth] = useState(() => parseInt(localStorage.getItem("reading_pane_width")) || 380);
+  const [isPaneDragging, setIsPaneDragging] = useState(false);
+  const paneDragRef = useRef({ active: false, startX: 0, startWidth: 0 });
+
+  useEffect(() => {
+    const onMouseMove = (e) => {
+      if (!paneDragRef.current.active) return;
+      const delta = e.clientX - paneDragRef.current.startX;
+      const next = Math.max(240, Math.min(700, paneDragRef.current.startWidth + delta));
+      setListPaneWidth(next);
+    };
+    const onMouseUp = () => {
+      if (!paneDragRef.current.active) return;
+      paneDragRef.current.active = false;
+      setIsPaneDragging(false);
+      setListPaneWidth(w => { localStorage.setItem("reading_pane_width", String(w)); return w; });
+    };
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => { window.removeEventListener("mousemove", onMouseMove); window.removeEventListener("mouseup", onMouseUp); };
+  }, []);
   const setReadingPane = (val) => {
     setReadingPaneState(val);
     fetch(`${API_URL}/user-settings`, {
@@ -4843,6 +4864,9 @@ export default function GmailUI({ userEmail, onLogout }) {
                 50%  { transform: translateX(0%); }
                 100% { transform: translateX(100%); }
               }
+              div:has(> .pane-resize-line):hover .pane-resize-line {
+                width: 2px !important;
+              }
             `}</style>
             <div style={{
               height: "100%",
@@ -5585,16 +5609,15 @@ export default function GmailUI({ userEmail, onLogout }) {
           }}
         >
           {/* Content */}
-          <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
+          <div style={{ flex: 1, display: "flex", overflow: "hidden", userSelect: isPaneDragging ? "none" : "auto" }}>
             {/* Email list — always visible in reading pane; shown when no email in normal mode */}
             {(!selectedEmail || readingPane) && (
                 <div
                   style={{
-                    flex: readingPane ? "0 0 380px" : 1,
+                    flex: readingPane ? `0 0 ${listPaneWidth}px` : 1,
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
-                    borderRight: readingPane ? "1px solid #e0e0e0" : "none",
                   }}
                 >
                   {/* Toolbar */}
@@ -6712,6 +6735,36 @@ export default function GmailUI({ userEmail, onLogout }) {
                     })}
                   </div>
                 </div>
+            )}
+            {/* Resize handle — visible gap with hidden drag bar that appears on hover */}
+            {readingPane && (
+              <div
+                onMouseDown={(e) => {
+                  paneDragRef.current = { active: true, startX: e.clientX, startWidth: listPaneWidth };
+                  setIsPaneDragging(true);
+                  e.preventDefault();
+                }}
+                style={{
+                  width: 12,
+                  flexShrink: 0,
+                  cursor: "col-resize",
+                  background: "#f0f4f9",
+                  position: "relative",
+                  userSelect: "none",
+                }}
+              >
+                {/* Thin indicator line — hidden until hover or drag */}
+                <div style={{
+                  position: "absolute",
+                  top: 0, bottom: 0,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: isPaneDragging ? 2 : 0,
+                  background: isPaneDragging ? "#1a73e8" : "#bdbdbd",
+                  transition: isPaneDragging ? "none" : "width 0.15s, background 0.15s",
+                  pointerEvents: "none",
+                }} className="pane-resize-line" />
+              </div>
             )}
             {/* Email detail — right panel in reading pane; full screen in normal mode */}
             {selectedEmail && (() => {
