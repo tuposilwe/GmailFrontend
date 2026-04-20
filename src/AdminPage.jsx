@@ -233,8 +233,169 @@ function ServerModal({ server, onClose, onSave }) {
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function parseUA(ua = "") {
+  const browser =
+    /Edg\//i.test(ua)     ? "Edge" :
+    /OPR\//i.test(ua)     ? "Opera" :
+    /Chrome\//i.test(ua)  ? "Chrome" :
+    /Firefox\//i.test(ua) ? "Firefox" :
+    /Safari\//i.test(ua)  ? "Safari" :
+    /MSIE|Trident/i.test(ua) ? "IE" : "Unknown";
+  const os =
+    /Windows NT 1[01]/i.test(ua) ? "Windows" :
+    /Mac OS X/i.test(ua)  ? "macOS" :
+    /Android/i.test(ua)   ? "Android" :
+    /iPhone|iPad/i.test(ua) ? "iOS" :
+    /Linux/i.test(ua)     ? "Linux" : "Unknown";
+  return `${browser} / ${os}`;
+}
+
+function timeAgo(iso) {
+  const sec = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (sec < 60)   return `${sec}s ago`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  if (sec < 86400) return `${Math.floor(sec / 3600)}h ago`;
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+function StatusBadge({ row }) {
+  if (row.blocked)  return <span style={{ background: "#fce8e6", color: "#c5221f", borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 600 }}>🚫 Blocked</span>;
+  if (row.success)  return <span style={{ background: "#e6f4ea", color: "#137333", borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 600 }}>✓ Success</span>;
+  return <span style={{ background: "#fef7e0", color: "#b06000", borderRadius: 4, padding: "2px 8px", fontSize: 12, fontWeight: 600 }}>✗ Failed</span>;
+}
+
+// ── Audits tab ────────────────────────────────────────────────────────────────
+function AuditTab() {
+  const [data, setData]       = useState(null);
+  const [page, setPage]       = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [unblocking, setUnblocking] = useState(null);
+
+  const load = useCallback(async (p = page) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/admin/audits?page=${p}&limit=50`, { credentials: "include" });
+      setData(await res.json());
+    } catch { /* silent */ }
+    setLoading(false);
+  }, [page]);
+
+  useEffect(() => { load(page); }, [page]);
+
+  const unblock = async (ip) => {
+    setUnblocking(ip);
+    await fetch(`${API_URL}/admin/audits/rate-limits/${encodeURIComponent(ip)}`, { method: "DELETE", credentials: "include" });
+    setUnblocking(null);
+    load(page);
+  };
+
+  // Stats derived from current page
+  const audits      = data?.audits || [];
+  const total       = data?.total  || 0;
+  const pages       = data?.pages  || 1;
+  const rateLimited = data?.rateLimited || [];
+
+  const successCount = audits.filter(a => a.success).length;
+  const failedCount  = audits.filter(a => !a.success && !a.blocked).length;
+  const blockedCount = audits.filter(a => a.blocked).length;
+
+  return (
+    <div>
+      {/* Rate-limited IPs banner */}
+      {rateLimited.length > 0 && (
+        <div style={{ background: "#fce8e6", border: "1px solid #f5c6c6", borderRadius: 8, padding: "12px 16px", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#c5221f", marginBottom: 8 }}>🚫 Currently blocked IPs ({rateLimited.length})</div>
+          {rateLimited.map(r => (
+            <div key={r.ip} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6, fontSize: 13 }}>
+              <span style={{ fontFamily: "monospace", fontWeight: 600, color: "#202124" }}>{r.ip}</span>
+              <span style={{ color: "#5f6368" }}>{r.failures} failures · unblocks {timeAgo(r.blockUntil)}</span>
+              <button
+                className="adm-btn adm-btn-ghost"
+                style={{ padding: "2px 10px", fontSize: 12 }}
+                onClick={() => unblock(r.ip)}
+                disabled={unblocking === r.ip}
+              >
+                {unblocking === r.ip ? "…" : "Unblock"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Summary cards */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 20, flexWrap: "wrap" }}>
+        {[
+          { label: "Total (this page)", value: audits.length, color: "#1a73e8", bg: "#e8f0fe" },
+          { label: "Successful",        value: successCount,   color: "#137333", bg: "#e6f4ea" },
+          { label: "Failed",            value: failedCount,    color: "#b06000", bg: "#fef7e0" },
+          { label: "Blocked",           value: blockedCount,   color: "#c5221f", bg: "#fce8e6" },
+          { label: "Total records",     value: total,          color: "#5f6368", bg: "#f1f3f4" },
+        ].map(c => (
+          <div key={c.label} style={{ background: c.bg, borderRadius: 8, padding: "10px 16px", minWidth: 110, textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 700, color: c.color }}>{c.value}</div>
+            <div style={{ fontSize: 11, color: c.color, marginTop: 2 }}>{c.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="adm-empty">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" strokeWidth="2"
+            style={{ animation: "spin 0.8s linear infinite", display: "block", margin: "0 auto 8px" }}>
+            <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+            <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+          </svg>
+          Loading…
+        </div>
+      ) : audits.length === 0 ? (
+        <div className="adm-empty">No login attempts recorded yet.</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table className="adm-table" style={{ minWidth: 780 }}>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Email</th>
+                <th>Domain</th>
+                <th>IP</th>
+                <th>Device</th>
+                <th>IMAP Server</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {audits.map(a => (
+                <tr key={a.id}>
+                  <td style={{ color: "#5f6368", fontSize: 12, whiteSpace: "nowrap" }}>{timeAgo(a.createdAt)}</td>
+                  <td style={{ fontSize: 13 }}>{a.email || "—"}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{a.domain || "—"}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{a.ip || "—"}</td>
+                  <td style={{ fontSize: 12, color: "#5f6368" }}>{parseUA(a.userAgent)}</td>
+                  <td style={{ fontFamily: "monospace", fontSize: 12 }}>{a.imapServer || "—"}</td>
+                  <td><StatusBadge row={a} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Pagination */}
+      {pages > 1 && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 16 }}>
+          <button className="adm-btn adm-btn-ghost" style={{ padding: "5px 14px" }} disabled={page <= 1} onClick={() => setPage(p => p - 1)}>‹ Prev</button>
+          <span style={{ fontSize: 13, color: "#5f6368" }}>Page {page} of {pages}</span>
+          <button className="adm-btn adm-btn-ghost" style={{ padding: "5px 14px" }} disabled={page >= pages} onClick={() => setPage(p => p + 1)}>Next ›</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main admin dashboard ──────────────────────────────────────────────────────
 function AdminDashboard({ onLogout }) {
+  const [activeTab, setActiveTab] = useState("servers");
   const [servers, setServers]     = useState([]);
   const [loading, setLoading]     = useState(true);
   const [modal, setModal]         = useState(null); // null | "add" | {server}
@@ -292,74 +453,88 @@ function AdminDashboard({ onLogout }) {
   return (
     <div className="adm-wrap">
       <style>{css}</style>
-      <div className="adm-card">
+      <div className="adm-card" style={{ maxWidth: 900 }}>
+        {/* Header */}
         <div className="adm-header">
-          <h1 className="adm-title">IMAP Servers</h1>
-          <div style={{ display: "flex", gap: 8 }}>
-            <button className="adm-btn adm-btn-primary" onClick={() => setModal("add")}>
-              + Add Server
-            </button>
-            <button className="adm-btn adm-btn-logout" onClick={handleLogout}>
-              Logout
-            </button>
-          </div>
+          <h1 className="adm-title">Admin Panel</h1>
+          <button className="adm-btn adm-btn-logout" onClick={handleLogout}>Logout</button>
         </div>
 
-        {flash && (
-          <div className={flash.type === "success" ? "adm-success" : "adm-error"}>
-            {flash.msg}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="adm-empty">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" strokeWidth="2"
-              style={{ animation: "spin 0.8s linear infinite", marginBottom: 8 }}>
-              <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
-              <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
-            </svg>
-            <div>Loading…</div>
-          </div>
-        ) : servers.length === 0 ? (
-          <div className="adm-empty">
-            No IMAP servers configured yet.<br />
-            <button className="adm-btn adm-btn-ghost" style={{ marginTop: 12 }} onClick={() => setModal("add")}>
-              Add your first server
+        {/* Tab bar */}
+        <div style={{ display: "flex", borderBottom: "1px solid #e0e0e0", marginBottom: 24 }}>
+          {[{ key: "servers", label: "IMAP Servers" }, { key: "audits", label: "Audits" }].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)}
+              style={{
+                background: "none", border: "none", cursor: "pointer",
+                padding: "10px 18px", fontSize: 14, fontWeight: 500,
+                color: activeTab === t.key ? "#1a73e8" : "#5f6368",
+                borderBottom: activeTab === t.key ? "2px solid #1a73e8" : "2px solid transparent",
+                fontFamily: "inherit", marginBottom: -1,
+              }}>
+              {t.label}
             </button>
-          </div>
-        ) : (
-          <table className="adm-table">
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>Host</th>
-                <th>Port</th>
-                <th style={{ width: 100 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {servers.map(s => (
-                <tr key={s.id}>
-                  <td style={{ fontWeight: 500 }}>{s.label}</td>
-                  <td style={{ fontFamily: "monospace", fontSize: 13 }}>{s.host}</td>
-                  <td><span className="adm-badge">{s.port}</span></td>
-                  <td>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <button className="adm-btn adm-btn-ghost" style={{ padding: "5px 12px" }}
-                        onClick={() => setModal(s)}>Edit</button>
-                      <button className="adm-btn adm-btn-danger" style={{ padding: "5px 12px" }}
-                        onClick={() => setDeleteId(s.id)}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          ))}
+        </div>
+
+        {flash && <div className={flash.type === "success" ? "adm-success" : "adm-error"}>{flash.msg}</div>}
+
+        {/* Servers tab */}
+        {activeTab === "servers" && (
+          <>
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+              <button className="adm-btn adm-btn-primary" onClick={() => setModal("add")}>+ Add Server</button>
+            </div>
+            {loading ? (
+              <div className="adm-empty">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" strokeWidth="2"
+                  style={{ animation: "spin 0.8s linear infinite", marginBottom: 8 }}>
+                  <circle cx="12" cy="12" r="10" strokeOpacity="0.25"/>
+                  <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round"/>
+                </svg>
+                <div>Loading…</div>
+              </div>
+            ) : servers.length === 0 ? (
+              <div className="adm-empty">
+                No IMAP servers configured yet.<br />
+                <button className="adm-btn adm-btn-ghost" style={{ marginTop: 12 }} onClick={() => setModal("add")}>
+                  Add your first server
+                </button>
+              </div>
+            ) : (
+              <table className="adm-table">
+                <thead>
+                  <tr>
+                    <th>Label</th>
+                    <th>Host</th>
+                    <th>Port</th>
+                    <th style={{ width: 120 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {servers.map(s => (
+                    <tr key={s.id}>
+                      <td style={{ fontWeight: 500 }}>{s.label}</td>
+                      <td style={{ fontFamily: "monospace", fontSize: 13 }}>{s.host}</td>
+                      <td><span className="adm-badge">{s.port}</span></td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className="adm-btn adm-btn-ghost" style={{ padding: "5px 12px" }} onClick={() => setModal(s)}>Edit</button>
+                          <button className="adm-btn adm-btn-danger" style={{ padding: "5px 12px" }} onClick={() => setDeleteId(s.id)}>Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div style={{ fontSize: 12, color: "#80868b", marginTop: 8 }}>
+              These servers are tried in order when a user logs in.
+            </div>
+          </>
         )}
 
-        <div style={{ fontSize: 12, color: "#80868b", marginTop: 8 }}>
-          These servers are servers configured.
-        </div>
+        {/* Audits tab */}
+        {activeTab === "audits" && <AuditTab />}
       </div>
 
       {/* Add / Edit modal */}
