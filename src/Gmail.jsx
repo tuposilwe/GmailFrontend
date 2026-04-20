@@ -4080,6 +4080,11 @@ export default function GmailUI({ userEmail, onLogout }) {
   const [showCompose, setShowCompose] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showHelpMenu, setShowHelpMenu] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [supportEnabled, setSupportEnabled] = useState(() => localStorage.getItem("support_panel") === "true");
+  const helpBtnRef = useRef(null);
+  const toggleSupport = (val) => { setSupportEnabled(val); localStorage.setItem("support_panel", val ? "true" : "false"); };
   const [readingPane, setReadingPaneState] = useState(false);
   const [listPaneWidth, setListPaneWidth] = useState(() => parseInt(localStorage.getItem("reading_pane_width")) || 380);
   const [isPaneDragging, setIsPaneDragging] = useState(false);
@@ -5217,12 +5222,14 @@ export default function GmailUI({ userEmail, onLogout }) {
 
         <div style={{ flex: 1 }} />
 
-        {/* Support */}
-        <Tooltip label="Support" position="bottom">
+        {/* Help / Support */}
+        <Tooltip label="Help" position="bottom">
           <button
-            style={{ background: "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
+            ref={helpBtnRef}
+            onClick={() => setShowHelpMenu(v => !v)}
+            style={{ background: showHelpMenu ? "#e0e0e0" : "none", border: "none", cursor: "pointer", borderRadius: "50%", width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", color: "#5f6368", flexShrink: 0 }}
             onMouseEnter={(e) => (e.currentTarget.style.background = "#e0e0e0")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = showHelpMenu ? "#e0e0e0" : "none")}
           >
             <MdHelpOutline size={22} />
           </button>
@@ -7013,6 +7020,203 @@ export default function GmailUI({ userEmail, onLogout }) {
             </div>
           </div>
         </>
+      )}
+
+      {/* ── Help dropdown menu ── */}
+      {showHelpMenu && (
+        <>
+          <div onClick={() => setShowHelpMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 1498 }} />
+          <div style={{
+            position: "fixed",
+            top: (() => { const r = helpBtnRef.current?.getBoundingClientRect(); return r ? r.bottom + 8 : 60; })(),
+            right: 12,
+            background: "#fff",
+            borderRadius: 8,
+            boxShadow: "0 4px 20px rgba(0,0,0,0.22)",
+            zIndex: 1499,
+            width: 288,
+            overflow: "hidden",
+            fontFamily: "'Google Sans', Roboto, Arial, sans-serif",
+          }}>
+            {/* Search bar */}
+            {/* <div style={{ padding: "12px 16px 8px", borderBottom: "1px solid #f1f3f4" }}>
+              <div style={{ display: "flex", alignItems: "center", background: "#f1f3f4", borderRadius: 24, padding: "6px 12px", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input
+                  placeholder="Search for help"
+                  autoFocus
+                  style={{ border: "none", background: "none", outline: "none", fontSize: 14, color: "#202124", width: "100%", fontFamily: "inherit" }}
+                  onKeyDown={e => { if (e.key === "Enter") { window.open("https://support.google.com/mail", "_blank"); setShowHelpMenu(false); } }}
+                />
+              </div>
+            </div> */}
+
+            {/* Menu items */}
+            {[
+              { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>, label: "Help Center", action: () => { setComposeDraft({ recipients: [{ name: "Support", email: "support@yana.africa" }], subject: "Help Request", body: "", attachments: [] }); setComposeKey(k => k + 1); setShowCompose(true); setComposeMinimized(false); setShowHelpMenu(false); } },
+              // { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>, label: "Training", action: () => { window.open("https://workspace.google.com/learning-center/", "_blank"); setShowHelpMenu(false); } },
+              // { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>, label: "Updates", action: () => { window.open("https://workspace.google.com/whatsnew/", "_blank"); setShowHelpMenu(false); } },
+              // { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M8 10h8M8 14h4"/></svg>, label: "Keyboard shortcuts", action: () => { setShowShortcuts(true); setShowHelpMenu(false); } },
+              // { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, label: "Send feedback", action: () => { window.open("mailto:feedback@example.com?subject=Feedback", "_blank"); setShowHelpMenu(false); } },
+            ].map(item => (
+              <div key={item.label} onClick={item.action}
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", cursor: "pointer", fontSize: 14, color: "#202124" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}
+              >
+                <span style={{ color: "#5f6368", display: "flex" }}>{item.icon}</span>
+                {item.label}
+              </div>
+            ))}
+
+            {/* <div style={{ borderTop: "1px solid #f1f3f4", margin: "4px 0" }} /> */}
+
+            {/* Support toggle */}
+            {/* <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 16px 14px", gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 14, color: "#202124", fontWeight: 500 }}>Support</div>
+                <div style={{ fontSize: 12, color: "#5f6368", marginTop: 2 }}>{supportEnabled ? "Panel is visible" : "Panel is hidden"}</div>
+              </div>
+              <div
+                onClick={() => toggleSupport(!supportEnabled)}
+                style={{
+                  width: 44, height: 24, borderRadius: 12, flexShrink: 0,
+                  background: supportEnabled ? "#1a73e8" : "#bdc1c6",
+                  position: "relative", cursor: "pointer", transition: "background 0.2s",
+                }}
+              >
+                <div style={{
+                  position: "absolute", top: 2, left: supportEnabled ? 22 : 2,
+                  width: 20, height: 20, borderRadius: "50%", background: "#fff",
+                  transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                }} />
+              </div>
+            </div> */}
+          </div>
+        </>
+      )}
+
+      {/* ── Keyboard shortcuts modal ── */}
+      {showShortcuts && (
+        <>
+          <div onClick={() => setShowShortcuts(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.35)", zIndex: 2000 }} />
+          <div style={{
+            position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+            background: "#fff", borderRadius: 12, boxShadow: "0 8px 40px rgba(0,0,0,0.22)",
+            zIndex: 2001, width: 580, maxWidth: "96vw", maxHeight: "82vh",
+            display: "flex", flexDirection: "column", fontFamily: "'Google Sans', Roboto, Arial, sans-serif",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", padding: "20px 24px 16px", borderBottom: "1px solid #e0e0e0" }}>
+              <span style={{ fontSize: 18, fontWeight: 600, color: "#202124", flex: 1 }}>Keyboard shortcuts</span>
+              <button onClick={() => setShowShortcuts(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: 4, borderRadius: "50%", display: "flex" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                <MdClose size={22} />
+              </button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 24px 24px" }}>
+              {[
+                { section: "Navigation", items: [
+                  ["c", "Compose new email"],
+                  ["/", "Search"],
+                  ["?", "Open keyboard shortcuts"],
+                  ["Esc", "Close current view"],
+                ]},
+                { section: "Email actions", items: [
+                  ["e", "Archive"],
+                  ["#", "Delete"],
+                  ["!", "Mark as spam"],
+                  ["r", "Reply"],
+                  ["f", "Forward"],
+                  ["s", "Star / unstar"],
+                  ["Shift + u", "Mark as unread"],
+                ]},
+                { section: "Navigation", items: [
+                  ["j / n", "Older conversation"],
+                  ["k / p", "Newer conversation"],
+                  ["u", "Back to inbox"],
+                ]},
+                { section: "Selection", items: [
+                  ["* + a", "Select all"],
+                  ["* + n", "Select none"],
+                  ["* + r", "Select read"],
+                  ["* + u", "Select unread"],
+                ]},
+              ].map(group => (
+                <div key={group.section} style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1a73e8", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>{group.section}</div>
+                  {group.items.map(([key, desc]) => (
+                    <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderBottom: "0.5px solid #f1f3f4" }}>
+                      <span style={{ fontSize: 14, color: "#202124" }}>{desc}</span>
+                      <kbd style={{ fontFamily: "monospace", fontSize: 12, background: "#f1f3f4", border: "1px solid #dadce0", borderRadius: 4, padding: "2px 8px", color: "#202124", whiteSpace: "nowrap" }}>{key}</kbd>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Support panel (right-side contextual help) ── */}
+      {supportEnabled && (
+        <div style={{
+          position: "fixed", top: 56, right: 0, bottom: 0, width: 300,
+          background: "#fff", borderLeft: "1px solid #e0e0e0",
+          boxShadow: "-2px 0 8px rgba(0,0,0,0.08)", zIndex: 900,
+          display: "flex", flexDirection: "column",
+          fontFamily: "'Google Sans', Roboto, Arial, sans-serif",
+          transition: "transform 0.25s ease",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", padding: "14px 16px", borderBottom: "1px solid #e0e0e0" }}>
+            <span style={{ fontSize: 16, fontWeight: 600, color: "#202124", flex: 1 }}>Support</span>
+            <button onClick={() => toggleSupport(false)} style={{ background: "none", border: "none", cursor: "pointer", color: "#5f6368", padding: 4, borderRadius: "50%", display: "flex" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+              onMouseLeave={e => e.currentTarget.style.background = "none"}>
+              <MdClose size={20} />
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+            {/* Search */}
+            <div style={{ display: "flex", alignItems: "center", background: "#f1f3f4", borderRadius: 24, padding: "7px 14px", gap: 8, marginBottom: 20 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input placeholder="Search help…" style={{ border: "none", background: "none", outline: "none", fontSize: 14, color: "#202124", width: "100%", fontFamily: "inherit" }} />
+            </div>
+            {/* Popular topics */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 10 }}>Popular topics</div>
+            {[
+              "How to send an email",
+              "Manage your inbox",
+              "Set up email signature",
+              "Keyboard shortcuts",
+              "Filter and sort emails",
+              "Manage folders",
+              "Set up reading pane",
+              "Search for emails",
+            ].map(topic => (
+              <div key={topic} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 4px", cursor: "pointer", borderRadius: 4, fontSize: 14, color: "#1a73e8" }}
+                onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                onMouseLeave={e => e.currentTarget.style.background = "none"}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                {topic}
+              </div>
+            ))}
+            <div style={{ borderTop: "1px solid #e0e0e0", margin: "16px 0" }} />
+            {/* Contact */}
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#5f6368", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 10 }}>Contact support</div>
+            <div
+              onClick={() => window.open("mailto:support@example.com", "_blank")}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", cursor: "pointer", borderRadius: 8, border: "1px solid #dadce0", fontSize: 14, color: "#202124" }}
+              onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+              onMouseLeave={e => e.currentTarget.style.background = "none"}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1a73e8" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <div>
+                <div style={{ fontWeight: 500 }}>Email support</div>
+                <div style={{ fontSize: 12, color: "#5f6368" }}>support@example.com</div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Settings Modal */}
