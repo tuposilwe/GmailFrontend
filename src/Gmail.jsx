@@ -3749,8 +3749,8 @@ function SearchOverlay({
 }
 
 // ── Settings Modal ────────────────────────────────────────────────────────────
-function SettingsModal({ onClose }) {
-  const [activeTab, setActiveTab] = useState("signature");
+function SettingsModal({ onClose, readingPane, setReadingPane }) {
+  const [activeTab, setActiveTab] = useState("general");
 
   // ── Signature state ────────────────────────────────────────────────
   const [signatures, setSignatures] = useState([]);
@@ -3834,7 +3834,7 @@ function SettingsModal({ onClose }) {
     document.execCommand(cmd, false, val || null);
   };
 
-  const TABS = ["signature"];
+  const TABS = ["general", "signature"];
 
   return (
     <>
@@ -3877,6 +3877,32 @@ function SettingsModal({ onClose }) {
 
         {/* Body */}
         <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+
+          {activeTab === "general" && (
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 600, color: "#202124", marginBottom: 20 }}>Reading pane</div>
+              <label style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer", padding: "14px 16px", borderRadius: 8, border: "1px solid #e0e0e0", background: readingPane ? "#f0f7ff" : "#fff", transition: "background 0.15s" }}>
+                <div
+                  onClick={() => setReadingPane(!readingPane)}
+                  style={{
+                    width: 44, height: 24, borderRadius: 12, flexShrink: 0,
+                    background: readingPane ? "#1a73e8" : "#bdc1c6",
+                    position: "relative", cursor: "pointer", transition: "background 0.2s",
+                  }}
+                >
+                  <div style={{
+                    position: "absolute", top: 2, left: readingPane ? 22 : 2,
+                    width: 20, height: 20, borderRadius: "50%", background: "#fff",
+                    transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                  }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: "#202124" }}>Enable reading pane</div>
+                  <div style={{ fontSize: 13, color: "#5f6368", marginTop: 2 }}>Show email content in a side panel next to the message list, like Outlook</div>
+                </div>
+              </label>
+            </div>
+          )}
 
           {activeTab === "signature" && (
             <div style={{ display: "flex", gap: 20, minHeight: 340 }}>
@@ -4054,6 +4080,21 @@ export default function GmailUI({ userEmail, onLogout }) {
   const [showCompose, setShowCompose] = useState(false);
   const [composeMinimized, setComposeMinimized] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [readingPane, setReadingPaneState] = useState(false);
+  const setReadingPane = (val) => {
+    setReadingPaneState(val);
+    fetch(`${API_URL}/user-settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ readingPane: val }),
+    }).catch(() => {});
+  };
+  useEffect(() => {
+    fetch(`${API_URL}/user-settings`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setReadingPaneState(data.readingPane); })
+      .catch(() => {});
+  }, []);
   const [toast, setToast] = useState(null); // null | { message, actions: [{label,onClick}] }
   const toastTimer = useRef(null);
   const pendingOpenLatestSent = useRef(false);
@@ -5545,59 +5586,15 @@ export default function GmailUI({ userEmail, onLogout }) {
         >
           {/* Content */}
           <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
-            {(() => {
-              const emailIdx = paginatedEmails.findIndex(
-                (e) => e.id === selectedId,
-              );
-              const emailPosition = pageStart + emailIdx;
-              return selectedEmail ? (
-                <EmailDetail
-                  email={selectedEmail}
-                  onClose={() => setSelectedId(null)}
-                  onReply={(draft) => handlePendingSend(draft)}
-                  onForward={(draft) => handlePendingSend(draft)}
-                  onDelete={() => {
-                    patchList((list) => list.filter((em) => em.id !== selectedEmail.id));
-                    setSelectedId(null);
-                  }}
-                  onToast={showToast}
-                  onRestoreEmail={(emailData) => {
-                    patchList((list) => [emailData, ...list]);
-                  }}
-                  onUpdateEmail={(updates) => {
-                    patchList((list) => list.map((em) => em.id === selectedEmail.id ? { ...em, ...updates } : em));
-                  }}
-                  onMarkUnread={() => {
-                    patchList((list) =>
-                      list.map((em) =>
-                        em.id === selectedEmail.id
-                          ? { ...em, unread: true }
-                          : em,
-                      ),
-                    );
-                    setSelectedId(null);
-                  }}
-                  emailPosition={emailPosition}
-                  totalEmails={totalEmails}
-                  folder={activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : activeNav === "Spam" ? "spam" : activeNav === "Snoozed" ? (selectedEmail?.sourceFolder || "inbox") : "inbox"}
-                  onPrev={
-                    emailIdx > 0
-                      ? () => setSelectedId(paginatedEmails[emailIdx - 1].id)
-                      : null
-                  }
-                  onNext={
-                    emailIdx < paginatedEmails.length - 1
-                      ? () => setSelectedId(paginatedEmails[emailIdx + 1].id)
-                      : null
-                  }
-                />
-              ) : (
+            {/* Email list — always visible in reading pane; shown when no email in normal mode */}
+            {(!selectedEmail || readingPane) && (
                 <div
                   style={{
-                    flex: 1,
+                    flex: readingPane ? "0 0 380px" : 1,
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
+                    borderRight: readingPane ? "1px solid #e0e0e0" : "none",
                   }}
                 >
                   {/* Toolbar */}
@@ -6213,11 +6210,13 @@ export default function GmailUI({ userEmail, onLogout }) {
                             cursor: "pointer",
                             background: isChecked
                               ? "#e8f0fe"
-                              : isHovered
-                                ? "#f2f6fc"
-                                : email.unread
-                                  ? "#fff"
-                                  : "#f6f8fc",
+                              : (readingPane && email.id === selectedId)
+                                ? "#e8f0fe"
+                                : isHovered
+                                  ? "#f2f6fc"
+                                  : email.unread
+                                    ? "#fff"
+                                    : "#f6f8fc",
                             transition: "background 0.1s",
                             fontWeight: email.unread ? 600 : 400,
                           }}
@@ -6713,8 +6712,50 @@ export default function GmailUI({ userEmail, onLogout }) {
                     })}
                   </div>
                 </div>
+            )}
+            {/* Email detail — right panel in reading pane; full screen in normal mode */}
+            {selectedEmail && (() => {
+              const emailIdx = paginatedEmails.findIndex((e) => e.id === selectedId);
+              const emailPosition = pageStart + emailIdx;
+              return (
+                <EmailDetail
+                  email={selectedEmail}
+                  onClose={() => setSelectedId(null)}
+                  onReply={(draft) => handlePendingSend(draft)}
+                  onForward={(draft) => handlePendingSend(draft)}
+                  onDelete={() => {
+                    patchList((list) => list.filter((em) => em.id !== selectedEmail.id));
+                    setSelectedId(null);
+                  }}
+                  onToast={showToast}
+                  onRestoreEmail={(emailData) => { patchList((list) => [emailData, ...list]); }}
+                  onUpdateEmail={(updates) => {
+                    patchList((list) => list.map((em) => em.id === selectedEmail.id ? { ...em, ...updates } : em));
+                  }}
+                  onMarkUnread={() => {
+                    patchList((list) =>
+                      list.map((em) => em.id === selectedEmail.id ? { ...em, unread: true } : em),
+                    );
+                    setSelectedId(null);
+                  }}
+                  emailPosition={emailPosition}
+                  totalEmails={totalEmails}
+                  folder={activeNav === "Sent" ? "sent" : activeNav === "Drafts" ? "drafts" : activeNav === "Trash" ? "trash" : activeNav === "Spam" ? "spam" : activeNav === "Snoozed" ? (selectedEmail?.sourceFolder || "inbox") : "inbox"}
+                  onPrev={emailIdx > 0 ? () => setSelectedId(paginatedEmails[emailIdx - 1].id) : null}
+                  onNext={emailIdx < paginatedEmails.length - 1 ? () => setSelectedId(paginatedEmails[emailIdx + 1].id) : null}
+                />
               );
             })()}
+            {/* Reading pane empty state */}
+            {readingPane && !selectedEmail && (
+              <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 14, color: "#9aa0a6", userSelect: "none", background: "#f6f8fc" }}>
+                <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+                  <polyline points="22,6 12,13 2,6"/>
+                </svg>
+                <span style={{ fontSize: 15 }}>Select an email to read</span>
+              </div>
+            )}
           </div>
 
           {/* Storage bar — bottom of email list, visible on every page */}
@@ -6923,7 +6964,7 @@ export default function GmailUI({ userEmail, onLogout }) {
 
       {/* Settings Modal */}
       {showSettingsModal && (
-        <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        <SettingsModal onClose={() => setShowSettingsModal(false)} readingPane={readingPane} setReadingPane={setReadingPane} />
       )}
 
       {/* Snooze time picker */}
