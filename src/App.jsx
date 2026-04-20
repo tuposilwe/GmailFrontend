@@ -1,10 +1,13 @@
 import { useState, useEffect } from "react";
 import GmailUI from "./Gmail";
 import LoginPage from "./LoginPage";
+import AdminPage from "./AdminPage";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 
 function App() {
+  if (window.location.pathname === "/admin") return <AdminPage />;
+
   const [authState, setAuthState] = useState("loading"); // "loading" | "authenticated" | "unauthenticated"
   const [userEmail, setUserEmail] = useState(null);
 
