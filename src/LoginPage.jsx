@@ -99,6 +99,49 @@ const css = `
     font-size: 11px;
     color: #1a73e8;
   }
+
+  .lp-downloads {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .lp-downloads-label {
+    font-size: 12px;
+    color: #80868b;
+    letter-spacing: 0.3px;
+  }
+
+  .lp-download-links {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .lp-dl-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border: 1px solid #dadce0;
+    border-radius: 4px;
+    background: #fff;
+    color: #3c4043;
+    font-size: 13px;
+    font-family: 'Google Sans', Roboto, Arial, sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .lp-dl-btn:hover {
+    background: #f1f3f4;
+    border-color: #bdc1c6;
+  }
 `;
 
 export default function LoginPage({ onLogin }) {
@@ -234,6 +277,43 @@ export default function LoginPage({ onLogin }) {
           </div>
 
         </form>
+      </div>
+
+      {/* Download desktop app */}
+      <div className="lp-downloads">
+        <span className="lp-downloads-label">Download the desktop app</span>
+        <div className="lp-download-links">
+          <a
+            className="lp-dl-btn"
+            href={`${API_URL}/downloads/Yanamail Setup 0.1.0.exe`}
+            download
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 20h14v-2H5v2zm7-18v12.586l-3.293-3.293-1.414 1.414L12 17.414l4.707-4.707-1.414-1.414L13 14.586V2h-2z"/>
+            </svg>
+            Windows
+          </a>
+          <a
+            className="lp-dl-btn"
+            href={`${API_URL}/downloads/Yanamail-0.1.0-arm64.dmg`}
+            download
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 20h14v-2H5v2zm7-18v12.586l-3.293-3.293-1.414 1.414L12 17.414l4.707-4.707-1.414-1.414L13 14.586V2h-2z"/>
+            </svg>
+            macOS
+          </a>
+          <a
+            className="lp-dl-btn"
+            href={`${API_URL}/downloads/my-gmail_0.1.0_amd64.deb`}
+            download
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 20h14v-2H5v2zm7-18v12.586l-3.293-3.293-1.414 1.414L12 17.414l4.707-4.707-1.414-1.414L13 14.586V2h-2z"/>
+            </svg>
+            Linux
+          </a>
+        </div>
       </div>
     </div>
   );
