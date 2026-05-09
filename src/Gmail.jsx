@@ -192,10 +192,20 @@ function VerificationBadge({ domain }) {
   );
 }
 
-function AvatarMenu({ userEmail, onLogout }) {
+const AVATAR_COLORS = [
+  "#1a73e8", "#e37400", "#0f9d58", "#a142f4", "#d93025", "#00897b",
+];
+function avatarColor(email) {
+  let h = 0;
+  for (let i = 0; i < email.length; i++) h = (h * 31 + email.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function AvatarMenu({ userEmail, accounts = [], onLogout, onSwitchAccount, onAddAccount }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const initials = userEmail ? userEmail[0].toUpperCase() : "?";
+  const activeColor = avatarColor(userEmail || "");
 
   useEffect(() => {
     const handler = (e) => {
@@ -205,13 +215,15 @@ function AvatarMenu({ userEmail, onLogout }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  const otherAccounts = accounts.filter(a => a.email !== userEmail);
+
   return (
     <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
       <div
         onClick={() => setOpen(v => !v)}
         style={{
           width: 36, height: 36, borderRadius: "50%",
-          background: "#1a73e8", color: "#fff",
+          background: activeColor, color: "#fff",
           display: "flex", alignItems: "center", justifyContent: "center",
           fontSize: 14, fontWeight: 600, cursor: "pointer",
           userSelect: "none",
@@ -225,14 +237,14 @@ function AvatarMenu({ userEmail, onLogout }) {
           position: "absolute", top: "calc(100% + 8px)", right: 0,
           background: "#fff", borderRadius: 12,
           boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
-          minWidth: 260, zIndex: 3000, overflow: "hidden",
+          minWidth: 280, zIndex: 3000, overflow: "hidden",
           padding: "16px 0 8px",
         }}>
-          {/* Account info */}
+          {/* Active account */}
           <div style={{ padding: "0 20px 16px", borderBottom: "1px solid #e0e0e0", textAlign: "center" }}>
             <div style={{
               width: 56, height: 56, borderRadius: "50%",
-              background: "#1a73e8", color: "#fff",
+              background: activeColor, color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 22, fontWeight: 600, margin: "0 auto 10px",
             }}>
@@ -244,11 +256,72 @@ function AvatarMenu({ userEmail, onLogout }) {
             <div style={{ fontSize: 13, color: "#5f6368", marginTop: 2 }}>
               {userEmail}
             </div>
+            {/* Sign out active */}
+            <button
+              onClick={() => { setOpen(false); onLogout(userEmail); }}
+              style={{
+                marginTop: 12, padding: "6px 16px", fontSize: 13,
+                border: "1px solid #dadce0", borderRadius: 20,
+                background: "#fff", color: "#3c4043",
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+              onMouseLeave={e => e.currentTarget.style.background = "#fff"}
+            >
+              Sign out
+            </button>
           </div>
 
-          {/* Sign out */}
+          {/* Other accounts */}
+          {otherAccounts.length > 0 && (
+            <div style={{ borderBottom: "1px solid #e0e0e0", padding: "8px 0" }}>
+              <div style={{ padding: "4px 20px 6px", fontSize: 11, color: "#80868b", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Other accounts
+              </div>
+              {otherAccounts.map(acc => (
+                <div
+                  key={acc.email}
+                  style={{ display: "flex", alignItems: "center", padding: "8px 20px", cursor: "pointer", gap: 12 }}
+                  onMouseEnter={e => e.currentTarget.style.background = "#f1f3f4"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <div
+                    onClick={() => { setOpen(false); onSwitchAccount(acc.email); }}
+                    style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}
+                  >
+                    <div style={{
+                      width: 32, height: 32, borderRadius: "50%",
+                      background: avatarColor(acc.email), color: "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 13, fontWeight: 600, flexShrink: 0,
+                    }}>
+                      {acc.email[0].toUpperCase()}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, color: "#202124", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {acc.email}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    title="Remove account"
+                    onClick={e => { e.stopPropagation(); onLogout(acc.email); }}
+                    style={{ flexShrink: 0, color: "#80868b", cursor: "pointer", padding: 2, borderRadius: "50%", lineHeight: 0 }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "#e8eaed"; e.currentTarget.style.color = "#202124"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#80868b"; }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                    </svg>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add account */}
           <div
-            onClick={onLogout}
+            onClick={() => { setOpen(false); onAddAccount(); }}
             style={{
               padding: "10px 20px", fontSize: 14, color: "#202124",
               cursor: "pointer", display: "flex", alignItems: "center", gap: 10,
@@ -257,11 +330,12 @@ function AvatarMenu({ userEmail, onLogout }) {
             onMouseLeave={e => e.currentTarget.style.background = "none"}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5f6368" strokeWidth="2" strokeLinecap="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
+              <circle cx="12" cy="8" r="4"/>
+              <path d="M20 21a8 8 0 0 0-16 0"/>
+              <line x1="19" y1="11" x2="19" y2="17"/>
+              <line x1="16" y1="14" x2="22" y2="14"/>
             </svg>
-            Sign out
+            Add another account
           </div>
         </div>
       )}
@@ -4048,7 +4122,7 @@ function SettingsModal({ onClose, readingPane, setReadingPane }) {
   );
 }
 
-export default function GmailUI({ userEmail, onLogout }) {
+export default function GmailUI({ userEmail, accounts = [], onLogout, onSwitchAccount, onAddAccount }) {
   const queryClient = useQueryClient();
 
   // ── Restore state from URL hash on first load ────────────────────────────────
@@ -5248,7 +5322,13 @@ export default function GmailUI({ userEmail, onLogout }) {
         </Tooltip>
 
         {/* Avatar + account menu */}
-        <AvatarMenu userEmail={userEmail} onLogout={onLogout} />
+        <AvatarMenu
+          userEmail={userEmail}
+          accounts={accounts}
+          onLogout={onLogout}
+          onSwitchAccount={onSwitchAccount}
+          onAddAccount={onAddAccount}
+        />
       </div>
       </div>
 

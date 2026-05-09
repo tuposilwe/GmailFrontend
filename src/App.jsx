@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import GmailUI from "./Gmail";
 import LoginPage from "./LoginPage";
 import AdminPage from "./AdminPage";
@@ -8,18 +9,30 @@ const API_URL = import.meta.env.VITE_API_URL || "";
 function App() {
   if (window.location.pathname === "/admin") return <AdminPage />;
 
-  const [authState, setAuthState] = useState("loading"); // "loading" | "authenticated" | "unauthenticated"
-  const [userEmail, setUserEmail] = useState(null);
+  const queryClient = useQueryClient();
+  const [authState, setAuthState] = useState("loading"); // "loading" | "authenticated" | "unauthenticated" | "adding"
+  const [activeEmail, setActiveEmail] = useState(null);
+  const [accounts, setAccounts] = useState([]);
 
-  // Check existing session on mount
+  const fetchAccounts = async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/accounts`);
+      if (res.ok) {
+        const data = await res.json();
+        setAccounts(data.accounts || []);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
     fetch(`${API_URL}/auth/me`)
       .then(r => {
         if (r.ok) return r.json();
         throw new Error("unauthenticated");
       })
-      .then(data => {
-        setUserEmail(data.email);
+      .then(async data => {
+        setActiveEmail(data.email);
+        await fetchAccounts();
         setAuthState("authenticated");
       })
       .catch(() => {
@@ -27,15 +40,47 @@ function App() {
       });
   }, []);
 
-  const handleLogin = (email) => {
-    setUserEmail(email);
+  const handleLogin = async (email) => {
+    setActiveEmail(email);
+    await fetchAccounts();
     setAuthState("authenticated");
   };
 
-  const handleLogout = async () => {
-    await fetch(`${API_URL}/auth/logout`, { method: "POST" });
-    setUserEmail(null);
-    setAuthState("unauthenticated");
+  const handleLogout = async (emailToLogout) => {
+    const target = emailToLogout || activeEmail;
+
+    await fetch(`${API_URL}/auth/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: target }),
+    });
+
+    const remaining = accounts.filter(a => a.email !== target);
+    setAccounts(remaining);
+
+    if (target === activeEmail) {
+      if (remaining.length > 0) {
+        await handleSwitchAccount(remaining[0].email);
+      } else {
+        setActiveEmail(null);
+        setAuthState("unauthenticated");
+      }
+    }
+  };
+
+  const handleSwitchAccount = async (email) => {
+    try {
+      const res = await fetch(`${API_URL}/auth/switch-to`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        queryClient.clear();
+        setActiveEmail(data.email || email);
+      }
+    } catch {}
   };
 
   if (authState === "loading") {
@@ -64,7 +109,29 @@ function App() {
     return <LoginPage onLogin={handleLogin} />;
   }
 
-  return <GmailUI userEmail={userEmail} onLogout={handleLogout} />;
+  if (authState === "adding") {
+    return (
+      <LoginPage
+        onLogin={async (email) => {
+          await handleLogin(email);
+          await handleSwitchAccount(email);
+        }}
+        onCancel={() => setAuthState("authenticated")}
+        mode="add"
+      />
+    );
+  }
+
+  return (
+    <GmailUI
+      key={activeEmail}
+      userEmail={activeEmail}
+      accounts={accounts}
+      onLogout={handleLogout}
+      onSwitchAccount={handleSwitchAccount}
+      onAddAccount={() => setAuthState("adding")}
+    />
+  );
 }
 
 export default App;

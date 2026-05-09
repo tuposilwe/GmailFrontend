@@ -144,12 +144,14 @@ const css = `
   }
 `;
 
-export default function LoginPage({ onLogin }) {
+export default function LoginPage({ onLogin, onCancel, mode }) {
   const [email, setEmail]     = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw]   = useState(false);
   const [error, setError]     = useState("");
   const [loading, setLoading] = useState(false);
+
+  const isAddMode = mode === "add";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -179,7 +181,9 @@ export default function LoginPage({ onLogin }) {
         {/* Logo */}
         <img src="/google.png" alt="Google" style={{ height: 24, marginBottom: 8 }} />
 
-        <h1 style={{ fontSize: 24, fontWeight: 400, color: "#202124", margin: "16px 0 8px" }}>Sign in</h1>
+        <h1 style={{ fontSize: 24, fontWeight: 400, color: "#202124", margin: "16px 0 8px" }}>
+          {isAddMode ? "Add account" : "Sign in"}
+        </h1>
         <p style={{ fontSize: 14, color: "#5f6368", margin: "0 0 28px" }}>to continue to Mail</p>
 
         <form onSubmit={handleSubmit} style={{ width: "100%" }}>
@@ -249,7 +253,22 @@ export default function LoginPage({ onLogin }) {
           )}
 
           {/* Submit */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 28 }}>
+          <div style={{ display: "flex", justifyContent: isAddMode ? "space-between" : "flex-end", alignItems: "center", marginTop: 28 }}>
+            {isAddMode && (
+              <button
+                type="button"
+                onClick={onCancel}
+                style={{
+                  background: "none", color: "#1a73e8", border: "none",
+                  padding: "10px 8px", fontSize: 14, fontWeight: 500,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+                onMouseEnter={e => e.currentTarget.style.textDecoration = "underline"}
+                onMouseLeave={e => e.currentTarget.style.textDecoration = "none"}
+              >
+                Cancel
+              </button>
+            )}
             <button
               type="submit"
               disabled={loading}
